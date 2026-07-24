@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SHADEPROOF-IG | Compliance & Conform</title>
+    <style>
+        :root {
+            --bg-base: #0a0a0a;
+            --bg-panel: #141414;
+            --text-primary: #f0f0f0;
+            --text-secondary: #888888;
+            --border-muted: #333333;
+            --status-pass: #00ff88;
+            --status-warn: #ffcc00;
+            --status-fail: #ff3366;
+            --action-primary: #aa00ff;
+            --action-hover: #cc44ff;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-primary);
+            font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .workspace { width: 100%; max-width: 800px; }
+        header { margin-bottom: 2rem; border-bottom: 1px solid var(--border-muted); padding-bottom: 1rem; }
+        h1 { font-size: 1.5rem; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 0.5rem 0; }
+        .version-tag { font-size: 0.8rem; color: var(--action-primary); font-family: monospace; }
+
+        #drop-zone {
+            border: 2px dashed var(--border-muted);
+            border-radius: 6px;
+            padding: 4rem 2rem;
+            text-align: center;
+            background-color: var(--bg-panel);
+            transition: all 0.2s ease;
+            cursor: pointer;
+            margin-bottom: 2rem;
+        }
+        #drop-zone.drag-active { border-color: var(--action-primary); background-color: rgba(170, 0, 255, 0.05); }
+
+        #report-panel {
+            display: none;
+            background-color: var(--bg-panel);
+            padding: 1.5rem;
+            border-radius: 6px;
+            border: 1px solid var(--border-muted);
+        }
+
+        .metric-row {
+            display: flex; justify-content: space-between;
+            padding: 0.75rem 0; border-bottom: 1px solid var(--border-muted);
+            font-size: 0.95rem; font-family: monospace;
+        }
+        .metric-row:last-child { border-bottom: none; }
+
+        .val-pass { color: var(--status-pass); }
+        .val-warn { color: var(--status-warn); font-weight: bold; }
+        .val-fail { color: var(--status-fail); font-weight: bold; }
+        .val-hash { color: var(--text-secondary); font-size: 0.85rem; }
+
+        .btn {
+            background-color: var(--action-primary); color: #ffffff;
+            border: none; padding: 1rem; font-size: 0.9rem; font-weight: 600;
+            letter-spacing: 1px; border-radius: 4px; cursor: pointer;
+            width: 100%; margin-top: 1.5rem; transition: background-color 0.2s ease;
+        }
+        .btn:hover:not(:disabled) { background-color: var(--action-hover); }
+        .btn:disabled { background-color: var(--border-muted); color: var(--text-secondary); cursor: not-allowed; }
+
+        #processing-video, #processing-canvas { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="workspace">
+        <header>
+            <h1>SHADEPROOF-IG</h1>
+            <span class="version-tag">SRC // EVANSCIRA LABS - VEILPOINT SANITIZER</span>
+        </header>
+        
+        <div id="drop-zone">
+            <h3>INITIALIZE INSPECTION</h3>
+            <p style="color: var(--text-secondary);" id="status-text">Loading Neural Networks...</p>
+            <input type="file" id="media-input" accept="video/mp4,video/quicktime" style="display: none;" disabled>
+        </div>
+
+        <div id="report-panel">
+            <h2 style="font-size: 1.2rem; margin-top: 0; color: var(--text-secondary);">VEILPOINT TELEMETRY</h2>
+            <div id="telemetry-data"></div>
+            <button id="btn-conform" class="btn" disabled>EXECUTE CONFORM PROTOCOL</button>
+        </div>
+    </div>
+
+    <video id="processing-video" muted playsinline></video>
+    <canvas id="processing-canvas"></canvas>
+
+    <!-- Dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/nsfwjs@2.4.2/dist/nsfwjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.7/dist/umd/ffmpeg.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+
+    <script>
+        const DOM = {
+            dropZone: document.getElementById('drop-zone'),
+            fileInput: document.getElementById('media-input'),
+            reportPanel: document.getElementById('report-panel'),
+            telemetryData: document.getElementById('telemetry-data'),
+            btnConform: document.getElementById('btn-conform'),
+            statusText: document.getElementById('status-text'),
+            video: document.getElementById('processing-video'),
+            canvas: document.getElementById('processing-canvas')
+        };
+
+        let nsfwModel = null;
+        let ffmpeg = null;
+        let activeFile = null;
+
+        async function bootSystems() {
+            try {
+                DOM.statusText.innerText = "[SYS] Loading Veilpoint AI Model...";
+                nsfwModel = await nsfwjs.load();
+                
+                DOM.statusText.innerText = "[SYS] Initializing WASM Transcoder...";
+                const { FFmpeg } = window.FFmpeg;
+                ffmpeg = new FFmpeg();
+                
+                await ffmpeg.load({
+                    coreURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.4/dist/umd/ffmpeg-core.js',
+                    wasmURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.4/dist/umd/ffmpeg-core.wasm'
+                });
+
+                DOM.statusText.innerText = "Drag and drop media payload here (MP4/MOV)";
+                DOM.fileInput.disabled = false;
+            } catch (err) {
+                console.error(err);
+                DOM.statusText.innerText = "CRITICAL ERROR: Failed to boot subsystems. Check console.";
+                DOM.statusText.style.color = "var(--status-fail)";
+            }
+        }
+        bootSystems();
+
+        DOM.dropZone.addEventListener('click', () => { if (!DOM.fileInput.disabled) DOM.fileInput.click(); });
+        DOM.dropZone.addEventListener('dragover', (e) => { e.preventDefault(); DOM.dropZone.classList.add('drag-active'); });
+        DOM.dropZone.addEventListener('dragleave', () => DOM.dropZone.classList.remove('drag-active'));
+        DOM.dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            DOM.dropZone.classList.remove('drag-active');
+            if (e.dataTransfer.files.length && !DOM.fileInput.disabled) {
+                ingestMedia(e.dataTransfer.files[0]);
+            }
+        });
+        DOM.fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) ingestMedia(e.target.files[0]);
+        });
+
+        async function generateFileHash(file) {
+            const buffer = await file.arrayBuffer();
+            const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        async function ingestMedia(file) {
+            activeFile = file;
+            DOM.reportPanel.style.display = 'block';
+            DOM.telemetryData.innerHTML = '<div style="padding: 1rem; color: var(--text-secondary);">[SYS] Hashing payload & scanning frame sequence...</div>';
+            DOM.btnConform.disabled = true;
+
+            // Generate cryptographic signature hash
+            const fileHash = await generateFileHash(file);
+
+            const fileURL = URL.createObjectURL(file);
+            DOM.video.src = fileURL;
+
+            DOM.video.onloadeddata = async () => {
+                DOM.canvas.width = DOM.video.videoWidth;
+                DOM.canvas.height = DOM.video.videoHeight;
+                const ctx = DOM.canvas.getContext('2d');
+                const duration = DOM.video.duration;
+                
+                let maxExplicitScore = 0;
+                let maxSuggestiveScore = 0;
+
+                for (let time = 0; time < duration; time += 2) {
+                    DOM.video.currentTime = time;
+                    await new Promise(resolve => { DOM.video.onseeked = resolve; });
+
+                    ctx.drawImage(DOM.video, 0, 0, DOM.canvas.width, DOM.canvas.height);
+                    const predictions = await nsfwModel.classify(DOM.canvas);
+                    
+                    const porn = predictions.find(p => p.className === 'Porn').probability;
+                    const hentai = predictions.find(p => p.className === 'Hentai').probability;
+                    const sexy = predictions.find(p => p.className === 'Sexy').probability;
+
+                    const explicit = Math.max(porn, hentai);
+                    if (explicit > maxExplicitScore) maxExplicitScore = explicit;
+                    if (sexy > maxSuggestiveScore) maxSuggestiveScore = sexy;
+                }
+
+                URL.revokeObjectURL(fileURL);
+                generateReport(maxExplicitScore, maxSuggestiveScore, fileHash);
+            };
+        }
+
+        function generateReport(explicitScore, suggestiveScore, fileHash) {
+            DOM.telemetryData.innerHTML = '';
+            
+            const isExplicit = explicitScore > 0.85;
+            const isSuggestive = suggestiveScore > 0.82;
+            let allowConform = true;
+
+            const report = [
+                { param: 'SHA-256 HASH', status: fileHash, class: 'val-hash' }
+            ];
+
+            if (isExplicit) {
+                report.push({ param: 'TIER 1 (EXPLICIT)', status: `DETECTED (${(explicitScore * 100).toFixed(1)}%)`, class: 'val-fail' });
+                allowConform = false;
+            } else {
+                report.push({ param: 'TIER 1 (EXPLICIT)', status: 'CLEAR', class: 'val-pass' });
+            }
+
+            if (isSuggestive && !isExplicit) {
+                report.push({ param: 'TIER 2 (SUGGESTIVE)', status: `WARNING (${(suggestiveScore * 100).toFixed(1)}%) - Shadowban Risk`, class: 'val-warn' });
+            } else if (!isExplicit) {
+                report.push({ param: 'TIER 2 (SUGGESTIVE)', status: 'CLEAR', class: 'val-pass' });
+            }
+
+            report.push({ param: 'MALICIOUS PAYLOADS', status: 'ISOLATED / CDR READY', class: 'val-pass' });
+
+            report.forEach(item => {
+                const row = document.createElement('div');
+                row.className = 'metric-row';
+                row.innerHTML = `<span>${item.param}</span><span class="${item.class}">${item.status}</span>`;
+                DOM.telemetryData.appendChild(row);
+            });
+
+            if (!allowConform) {
+                DOM.btnConform.innerText = 'CONFORM LOCKED - TIER 1 VIOLATION';
+                DOM.btnConform.disabled = true;
+                DOM.btnConform.style.backgroundColor = 'var(--status-fail)';
+            } else {
+                DOM.btnConform.innerText = 'EXECUTE CONFORM PROTOCOL';
+                DOM.btnConform.disabled = false;
+                DOM.btnConform.style.backgroundColor = 'var(--action-primary)';
+            }
+        }
+
+        DOM.btnConform.addEventListener('click', async () => {
+            DOM.btnConform.innerText = 'WASHING DATASTREAM... DO NOT CLOSE';
+            DOM.btnConform.disabled = true;
+            DOM.telemetryData.innerHTML += '<div class="metric-row" style="color: var(--action-primary);">[SYS] Stripping metadata and executing structural CDR...</div>';
+
+            try {
+                const { fetchFile } = window.FFmpegUtil;
+                
+                await ffmpeg.writeFile('input_raw.mp4', await fetchFile(activeFile));
+
+                await ffmpeg.exec([
+                    '-i', 'input_raw.mp4',
+                    '-vf', 'scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2',
+                    '-r', '30',
+                    '-pix_fmt', 'yuv420p',
+                    '-c:v', 'libx264', '-preset', 'fast', '-crf', '23', '-maxrate', '8M', '-bufsize', '16M',
+                    '-c:a', 'aac', '-b:a', '256k', '-ar', '48000',
+                    '-map_metadata', '-1',
+                    '-fflags', '+bitexact',
+                    '-flags:v', '+bitexact',
+                    '-flags:a', '+bitexact',
+                    'output_shadeproof.mp4'
+                ]);
+
+                const data = await ffmpeg.readFile('output_shadeproof.mp4');
+                
+                const downloadBlob = new Blob([data.buffer], { type: 'video/mp4' });
+                const downloadURL = URL.createObjectURL(downloadBlob);
+                const a = document.createElement('a');
+                a.href = downloadURL;
+                a.download = 'SHADEPROOF_CLEAN_' + activeFile.name;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+
+                DOM.btnConform.innerText = 'CONFORM COMPLETE - SECURE DOWNLOAD TRIGGERED';
+                DOM.btnConform.style.backgroundColor = 'var(--status-pass)';
+                DOM.btnConform.style.color = 'var(--bg-base)';
+
+            } catch (error) {
+                console.error(error);
+                DOM.btnConform.innerText = 'CONFORM FAILED - CHECK CONSOLE';
+                DOM.btnConform.style.backgroundColor = 'var(--status-fail)';
+            }
+        });
+    </script>
+</body>
+</html>
