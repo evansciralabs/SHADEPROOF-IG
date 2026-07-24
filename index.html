@@ -80,6 +80,38 @@
 </head>
 <body>
 
+    <!-- GITHUB PAGES COOP/COEP ISOLATION BOOTSTRAP -->
+    <script>
+        if (window.location.protocol !== 'file:' && !window.crossOriginIsolated && navigator.serviceWorker) {
+            const swScript = `
+                self.addEventListener("install", e => self.skipWaiting());
+                self.addEventListener("activate", e => e.clients.claim());
+                self.addEventListener("fetch", e => {
+                    if (e.request.cache === "only-if-cached" && e.request.mode !== "same-origin") return;
+                    e.respondWith(
+                        fetch(e.request).then(res => {
+                            if (res.status === 0) return res;
+                            const newHeaders = new Headers(res.headers);
+                            newHeaders.set("Cross-Origin-Opener-Policy", "same-origin");
+                            newHeaders.set("Cross-Origin-Embedder-Policy", "require-corp");
+                            return new Response(res.body, {
+                                status: res.status,
+                                statusText: res.statusText,
+                                headers: newHeaders
+                            });
+                        }).catch(err => console.error(err))
+                    );
+                });
+            `;
+            const blob = new Blob([swScript], { type: 'text/javascript' });
+            navigator.serviceWorker.register(URL.createObjectURL(blob)).then(reg => {
+                if (reg.active && !navigator.serviceWorker.controller) {
+                    window.location.reload();
+                }
+            }).catch(err => console.warn("ServiceWorker registration skipped:", err));
+        }
+    </script>
+
     <div class="workspace">
         <header>
             <h1>SHADEPROOF-IG</h1>
@@ -125,15 +157,17 @@
         let activeFile = null;
 
         async function bootSystems() {
-            // 1. Boot FFmpeg WASM (Critical)
             try {
                 DOM.statusText.innerText = "[SYS] Initializing WASM Transcoder...";
                 const { FFmpeg } = window.FFmpeg;
+                const { toBlobURL } = window.FFmpegUtil;
+                
                 ffmpeg = new FFmpeg();
+                const baseURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.4/dist/umd';
                 
                 await ffmpeg.load({
-                    coreURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.4/dist/umd/ffmpeg-core.js',
-                    wasmURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.4/dist/umd/ffmpeg-core.wasm'
+                    coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+                    wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
                 });
             } catch (err) {
                 console.error("FFmpeg Load Error:", err);
@@ -142,7 +176,6 @@
                 return;
             }
 
-            // 2. Boot Neural Net (Non-blocking fallback)
             try {
                 DOM.statusText.innerText = "[SYS] Loading Veilpoint AI Model...";
                 nsfwModel = await nsfwjs.load();
@@ -184,7 +217,6 @@
             DOM.btnConform.disabled = true;
 
             const fileHash = await generateFileHash(file);
-
             let maxExplicitScore = 0;
             let maxSuggestiveScore = 0;
 
