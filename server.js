@@ -2,7 +2,7 @@
 // SRC // EVANSCIRA LABS - SHADEPROOF-IG Host
 const express = require('express');
 const app = express();
-const PORT = 8080;
+const PORT = 8070;
 
 // Force Cross-Origin Isolation to allow SharedArrayBuffer for ffmpeg.wasm
 app.use((req, res, next) => {
