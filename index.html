@@ -88,7 +88,7 @@
         
         <div id="drop-zone">
             <h3>INITIALIZE INSPECTION</h3>
-            <p style="color: var(--text-secondary);" id="status-text">Loading Neural Networks...</p>
+            <p style="color: var(--text-secondary);" id="status-text">Booting Subsystems...</p>
             <input type="file" id="media-input" accept="video/mp4,video/quicktime" style="display: none;" disabled>
         </div>
 
@@ -125,10 +125,8 @@
         let activeFile = null;
 
         async function bootSystems() {
+            // 1. Boot FFmpeg WASM (Critical)
             try {
-                DOM.statusText.innerText = "[SYS] Loading Veilpoint AI Model...";
-                nsfwModel = await nsfwjs.load();
-                
                 DOM.statusText.innerText = "[SYS] Initializing WASM Transcoder...";
                 const { FFmpeg } = window.FFmpeg;
                 ffmpeg = new FFmpeg();
@@ -137,14 +135,24 @@
                     coreURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.4/dist/umd/ffmpeg-core.js',
                     wasmURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.4/dist/umd/ffmpeg-core.wasm'
                 });
-
-                DOM.statusText.innerText = "Drag and drop media payload here (MP4/MOV)";
-                DOM.fileInput.disabled = false;
             } catch (err) {
-                console.error(err);
-                DOM.statusText.innerText = "CRITICAL ERROR: Failed to boot subsystems. Check console.";
+                console.error("FFmpeg Load Error:", err);
+                DOM.statusText.innerText = "CRITICAL ERROR: Failed to load WASM engine.";
                 DOM.statusText.style.color = "var(--status-fail)";
+                return;
             }
+
+            // 2. Boot Neural Net (Non-blocking fallback)
+            try {
+                DOM.statusText.innerText = "[SYS] Loading Veilpoint AI Model...";
+                nsfwModel = await nsfwjs.load();
+                DOM.statusText.innerText = "Drag and drop media payload here (MP4/MOV)";
+            } catch (err) {
+                console.warn("NSFWJS Model Load Warning: Running in technical compliance-only mode.", err);
+                DOM.statusText.innerText = "Drag and drop media payload here (AI Model Offline)";
+            }
+
+            DOM.fileInput.disabled = false;
         }
         bootSystems();
 
@@ -175,40 +183,45 @@
             DOM.telemetryData.innerHTML = '<div style="padding: 1rem; color: var(--text-secondary);">[SYS] Hashing payload & scanning frame sequence...</div>';
             DOM.btnConform.disabled = true;
 
-            // Generate cryptographic signature hash
             const fileHash = await generateFileHash(file);
 
-            const fileURL = URL.createObjectURL(file);
-            DOM.video.src = fileURL;
+            let maxExplicitScore = 0;
+            let maxSuggestiveScore = 0;
 
-            DOM.video.onloadeddata = async () => {
-                DOM.canvas.width = DOM.video.videoWidth;
-                DOM.canvas.height = DOM.video.videoHeight;
-                const ctx = DOM.canvas.getContext('2d');
-                const duration = DOM.video.duration;
-                
-                let maxExplicitScore = 0;
-                let maxSuggestiveScore = 0;
+            if (nsfwModel) {
+                const fileURL = URL.createObjectURL(file);
+                DOM.video.src = fileURL;
 
-                for (let time = 0; time < duration; time += 2) {
-                    DOM.video.currentTime = time;
-                    await new Promise(resolve => { DOM.video.onseeked = resolve; });
+                await new Promise((resolve) => {
+                    DOM.video.onloadeddata = async () => {
+                        DOM.canvas.width = DOM.video.videoWidth;
+                        DOM.canvas.height = DOM.video.videoHeight;
+                        const ctx = DOM.canvas.getContext('2d');
+                        const duration = DOM.video.duration;
+                        
+                        for (let time = 0; time < duration; time += 2) {
+                            DOM.video.currentTime = time;
+                            await new Promise(r => { DOM.video.onseeked = r; });
 
-                    ctx.drawImage(DOM.video, 0, 0, DOM.canvas.width, DOM.canvas.height);
-                    const predictions = await nsfwModel.classify(DOM.canvas);
-                    
-                    const porn = predictions.find(p => p.className === 'Porn').probability;
-                    const hentai = predictions.find(p => p.className === 'Hentai').probability;
-                    const sexy = predictions.find(p => p.className === 'Sexy').probability;
+                            ctx.drawImage(DOM.video, 0, 0, DOM.canvas.width, DOM.canvas.height);
+                            const predictions = await nsfwModel.classify(DOM.canvas);
+                            
+                            const porn = predictions.find(p => p.className === 'Porn').probability;
+                            const hentai = predictions.find(p => p.className === 'Hentai').probability;
+                            const sexy = predictions.find(p => p.className === 'Sexy').probability;
 
-                    const explicit = Math.max(porn, hentai);
-                    if (explicit > maxExplicitScore) maxExplicitScore = explicit;
-                    if (sexy > maxSuggestiveScore) maxSuggestiveScore = sexy;
-                }
+                            const explicit = Math.max(porn, hentai);
+                            if (explicit > maxExplicitScore) maxExplicitScore = explicit;
+                            if (sexy > maxSuggestiveScore) maxSuggestiveScore = sexy;
+                        }
 
-                URL.revokeObjectURL(fileURL);
-                generateReport(maxExplicitScore, maxSuggestiveScore, fileHash);
-            };
+                        URL.revokeObjectURL(fileURL);
+                        resolve();
+                    };
+                });
+            }
+
+            generateReport(maxExplicitScore, maxSuggestiveScore, fileHash);
         }
 
         function generateReport(explicitScore, suggestiveScore, fileHash) {
@@ -222,17 +235,21 @@
                 { param: 'SHA-256 HASH', status: fileHash, class: 'val-hash' }
             ];
 
-            if (isExplicit) {
-                report.push({ param: 'TIER 1 (EXPLICIT)', status: `DETECTED (${(explicitScore * 100).toFixed(1)}%)`, class: 'val-fail' });
-                allowConform = false;
-            } else {
-                report.push({ param: 'TIER 1 (EXPLICIT)', status: 'CLEAR', class: 'val-pass' });
-            }
+            if (nsfwModel) {
+                if (isExplicit) {
+                    report.push({ param: 'TIER 1 (EXPLICIT)', status: `DETECTED (${(explicitScore * 100).toFixed(1)}%)`, class: 'val-fail' });
+                    allowConform = false;
+                } else {
+                    report.push({ param: 'TIER 1 (EXPLICIT)', status: 'CLEAR', class: 'val-pass' });
+                }
 
-            if (isSuggestive && !isExplicit) {
-                report.push({ param: 'TIER 2 (SUGGESTIVE)', status: `WARNING (${(suggestiveScore * 100).toFixed(1)}%) - Shadowban Risk`, class: 'val-warn' });
-            } else if (!isExplicit) {
-                report.push({ param: 'TIER 2 (SUGGESTIVE)', status: 'CLEAR', class: 'val-pass' });
+                if (isSuggestive && !isExplicit) {
+                    report.push({ param: 'TIER 2 (SUGGESTIVE)', status: `WARNING (${(suggestiveScore * 100).toFixed(1)}%) - Shadowban Risk`, class: 'val-warn' });
+                } else if (!isExplicit) {
+                    report.push({ param: 'TIER 2 (SUGGESTIVE)', status: 'CLEAR', class: 'val-pass' });
+                }
+            } else {
+                report.push({ param: 'VEILPOINT AI', status: 'OFFLINE (TECH-ONLY MODE)', class: 'val-warn' });
             }
 
             report.push({ param: 'MALICIOUS PAYLOADS', status: 'ISOLATED / CDR READY', class: 'val-pass' });
