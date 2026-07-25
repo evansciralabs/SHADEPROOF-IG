@@ -358,13 +358,20 @@ body.ghost #led.hot{background:#8b0000}
     <button class="arrow hidden" id="btn-close" title="Close video">✕</button>
   </div>
   <div id="prog"><i></i></div>
-  <input type="file" id="file" accept="video/*" class="offscreen">
+  <input type="file" id="file" accept="video/*" class="offscreen" multiple>
 </header>
 
 <div id="grid">
 
   <aside>
     <div class="block">
+      <!-- BATCH NAV UI -->
+      <div id="batch-nav" class="hidden" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; font-family:var(--disp); font-size:10px; color:var(--violet);">
+        <button id="btn-prev" style="background:0 0; border:1px solid var(--violet-lo); color:var(--violet2); border-radius:4px; cursor:pointer; padding:2px 8px; transition:0.2s;">◀</button>
+        <span id="batch-status">FILE 1 OF 1</span>
+        <button id="btn-next" style="background:0 0; border:1px solid var(--violet-lo); color:var(--violet2); border-radius:4px; cursor:pointer; padding:2px 8px; transition:0.2s;">▶</button>
+      </div>
+      
       <div class="dgrid" id="source">
         <div class="ditem"><span class="dlbl">FRAME</span><span class="dval">—</span></div>
         <div class="ditem"><span class="dlbl">ASPECT</span><span class="dval">—</span></div>
@@ -580,12 +587,15 @@ const UI = {
   audio:$('audio'), zoom:$('zoom'), posx:$('posx'), posy:$('posy'),
   zoomV:$('zoom-v'), posxV:$('posx-v'), posyV:$('posy-v'),
   evidence:$('evidence'), evidenceCard:$('evidence-card'), toasts:$('toasts'),
-  video:$('pv'), canvas:$('pc'), pvw:$('pvw')
+  video:$('pv'), canvas:$('pc'), pvw:$('pvw'),
+  btnPrev:$('btn-prev'), btnNext:$('btn-next'), batchNav:$('batch-nav'), batchStatus:$('batch-status')
 };
 let ffmpeg = null, activeFile = null, probe = null, analysis = null, nsfwModel = null;
 let contentState = 'unchecked', lastOutput = null, lastName = '', busy = false;
 let contentCheckRun = null;
+let batchQueue = [], queueIdx = 0;
 const PREF_KEY = 'shadeproof_srcd2_v3';
+
 
 function setState(text, cls){ UI.footState.textContent = text; UI.led.className = cls || ''; }
 function log(msg){ try{ console.log('[SHADEPROOF] ' + msg); }catch(_){} }
@@ -831,8 +841,48 @@ const CORE_CANDIDATES = [
 UI.srcMark.onclick = () => { document.body.classList.toggle('ghost'); savePrefs(); };
 UI.btnImport.onclick = () => UI.file.click();
 UI.btnClose.onclick = () => { if(!busy) reset(); };
-UI.file.onchange = e => { if(e.target.files.length) ingest(e.target.files[0]); };
+
+// Replace the single-file onchange with this:
+UI.file.onchange = e => { 
+  if(e.target.files.length){
+    // Map all selected files into the global queue
+    batchQueue = Array.from(e.target.files).map(f => ({ file: f, probe: null, analysis: null }));
+    queueIdx = 0;
+    updateBatchUI();
+    ingest(batchQueue[queueIdx].file);
+  }
+};
+
+UI.btnPrev.onclick = () => { 
+  if(queueIdx > 0){ 
+    queueIdx--; updateBatchUI(); ingest(batchQueue[queueIdx].file); 
+  } 
+};
+
+UI.btnNext.onclick = () => { 
+  if(queueIdx < batchQueue.length - 1){ 
+    queueIdx++; updateBatchUI(); ingest(batchQueue[queueIdx].file); 
+  } 
+};
+
+function updateBatchUI(){
+  if(batchQueue.length > 1){
+    UI.batchNav.classList.remove('hidden');
+    UI.batchStatus.textContent = `FILE ${queueIdx + 1} OF ${batchQueue.length}`;
+    UI.btnPrev.style.opacity = queueIdx === 0 ? '0.3' : '1';
+    UI.btnNext.style.opacity = queueIdx === batchQueue.length - 1 ? '0.3' : '1';
+    UI.btnPrev.style.pointerEvents = queueIdx === 0 ? 'none' : 'auto';
+    UI.btnNext.style.pointerEvents = queueIdx === batchQueue.length - 1 ? 'none' : 'auto';
+  } else {
+    UI.batchNav.classList.add('hidden');
+  }
+}
+
 UI.scopeT.onclick = () => {
+  const open = UI.scopeB.classList.toggle('hidden');
+  UI.scopeT.textContent = open ? 'What does PASS actually cover?' : 'Hide details';
+};
+
   const open = UI.scopeB.classList.toggle('hidden');
   UI.scopeT.textContent = open ? 'What does PASS actually cover?' : 'Hide details';
 };
@@ -2239,11 +2289,16 @@ async function ingest(file){
     setState('Caution — malformed', 'hot');
     toast('warn','CAUTION', analysis.hazards[0].code + ' — ' + analysis.hazards[0].msg, 10000,
       'structural hazards:\n  ' + analysis.hazards.map(h=>h.code+': '+h.msg).join('\n  '));
-  } else {
+    } else {
     setState('Ready to export', 'live');
   }
   UI.btnExport.disabled = false;
   UI.stage.scrollTop = 0;
+
+  if(typeof batchQueue !== 'undefined' && batchQueue.length > 0) {
+    batchQueue[queueIdx].probe = probe;
+    batchQueue[queueIdx].analysis = analysis;
+  }
 
   contentCheckRun = runContentCheck();
 }
