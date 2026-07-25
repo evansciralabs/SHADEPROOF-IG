@@ -564,13 +564,13 @@ setState('Starting', 'busy');
 (async function boot(){
   try{
     const { FFmpeg } = window.FFmpegWASM || window.FFmpeg;
+    const { toBlobURL } = window.FFmpegUtil;
     ffmpeg = new FFmpeg();
     const base = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd';
     
     await ffmpeg.load({
-      coreURL: `${base}/ffmpeg-core.js`,
-      wasmURL: `${base}/ffmpeg-core.wasm`,
-      classWorkerURL: `${base}/814.ffmpeg.worker.js`
+      coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
+      wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm')
     });
     
     setState('Ready', 'live');
