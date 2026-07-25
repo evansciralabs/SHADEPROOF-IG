@@ -9,14 +9,14 @@
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'self';
   script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https://cdn.jsdelivr.net https://unpkg.com;
-  worker-src blob:; child-src blob:;
+  worker-src 'self' blob:; child-src 'self' blob:;
   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
   font-src https://fonts.gstatic.com data:;
   img-src 'self' blob: data:; media-src 'self' blob: data:;
   connect-src 'self' blob: data: https://cdn.jsdelivr.net https://unpkg.com https://s3.amazonaws.com;
   object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors *;">
 <meta name="referrer" content="no-referrer">
-<title>SRC-D2 // SHADEPROOF</title> 
+<title>SRC-D2 // SHADEPROOF</title>
 <link rel="manifest" href="manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -46,6 +46,10 @@ body{background:var(--bg);color:var(--silver);font-family:var(--mono);font-size:
 ::-webkit-scrollbar{width:6px;height:6px;background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--violet-lo);border-radius:3px}
 .hidden{display:none !important}
+/* Rendered but invisible. A display:none file input cannot be opened by
+   .click() on Android — this is the only reliable way to hide one. */
+.offscreen{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;
+  clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0;padding:0;margin:-1px}
 button{font-family:inherit}
 button:focus-visible,select:focus-visible{outline:2px solid var(--violet2);outline-offset:2px}
 
@@ -108,7 +112,7 @@ main::after{content:"";position:absolute;left:50%;top:-200px;width:640px;height:
 
 /* standby / drop zone */
 #standby{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  z-index:10;pointer-events:none;text-align:center;padding:16px}
+  z-index:10;pointer-events:auto;cursor:pointer;text-align:center;padding:16px}
 .sb-stage{width:min(58vh,380px);max-width:76vw;aspect-ratio:1;position:relative}
 .sb-svg{width:100%;height:100%;overflow:visible;display:block}
 .sb-dia-out{fill:none;stroke:url(#sp-edge);stroke-width:1.6;filter:drop-shadow(0 0 12px rgba(176,107,255,.55))}
@@ -268,7 +272,41 @@ body.ghost{--violet:#9aa0a6;--violet2:#c7c7c7;--violet-lo:#3a3a3a;--magenta:#9aa
   --bg:#000;--bg2:#060606;--panel:#0b0b0b;--sunk:#050505;--rail:#080808;
   --line:#2a2a2a;--line-hi:#3a3a3a;--line-soft:#1a1a1a}
 body.ghost *{text-shadow:none !important;box-shadow:none !important;animation:none !important}
-body.ghost main::before,body.ghost main::after{opacity:.3}
+body.ghost main::before,body.ghost main::after{opacity:.18;filter:grayscale(1)}
+/* Everything below is a colour baked into a gradient, an rgba(), or an SVG
+   stop — none of them read the CSS variables, so ghost mode has to name them. */
+body.ghost .sb-svg{filter:grayscale(1) brightness(.82) contrast(.95)}
+body.ghost header::after{background:linear-gradient(90deg,transparent,rgba(255,255,255,.10) 45%,transparent)}
+body.ghost #src-mark:hover,body.ghost .arrow:hover:not(:disabled){background:rgba(255,255,255,.09)}
+body.ghost #btn-close{color:#8b0000}
+body.ghost #btn-close:hover:not(:disabled){color:#b04a4a;background:rgba(255,255,255,.09)}
+body.ghost #prog i{background:linear-gradient(90deg,#5a5a5a,#9a9a9a)}
+body.ghost .strip .part.media{background:linear-gradient(90deg,#3a3a3a,#7a7a7a)}
+body.ghost .strip .part.index{background:#2c2c2c}
+body.ghost .strip .part.extra{background:repeating-linear-gradient(45deg,#8a8a8a 0 4px,#4a4a4a 4px 8px)}
+body.ghost .strip-key i[style]{background:#6a6a6a !important}
+body.ghost .pill.good .ic,body.ghost .pill.warn .ic,body.ghost .pill.block .ic{
+  background:#101010;border-color:#3a3a3a}
+body.ghost .pill.block .v{color:#b04a4a}
+body.ghost .pv-scrim{background:rgba(0,0,0,.62)}
+body.ghost .pv-scrim .badge{background:rgba(139,0,0,.16);border-color:rgba(139,0,0,.55);color:#b04a4a}
+body.ghost .pv-meta{background:linear-gradient(transparent,rgba(0,0,0,.88))}
+body.ghost .pv-meta .facts{color:rgba(207,207,207,.7)}
+body.ghost #modal{background:rgba(0,0,0,.88)}
+body.ghost .dlg{border-color:#3a3a3a}
+body.ghost .dbtn.ok{border-color:#6a6a6a;color:#cfcfcf}
+body.ghost .dbtn.ok:hover{background:rgba(255,255,255,.10)}
+body.ghost .dbtn.no:hover{border-color:#8b0000;color:#b04a4a}
+body.ghost #drop{border-color:#6a6a6a;background:rgba(0,0,0,.94)}
+body.ghost select:focus{border-color:#6a6a6a}
+body.ghost .preview{background:#000;border-color:#2a2a2a}
+body.ghost .preview::before,body.ghost .preview::after{border-color:#6a6a6a}
+body.ghost .toast{border-left-color:#6a6a6a}
+body.ghost .integ-line.clean .dot{background:#8a8a8a}
+body.ghost .integ-line.dirty .dot{background:#a9a9a9}
+body.ghost #led.live{background:#8a8a8a}
+body.ghost #led.busy{background:#a9a9a9}
+body.ghost #led.hot{background:#8b0000}
 
 @media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
 
@@ -301,11 +339,11 @@ body.ghost main::before,body.ghost main::after{opacity:.3}
   <span class="wordmark">SHADEPROOF</span>
   <div class="h-right">
     <button class="arrow" id="btn-import" title="Import video">⤓</button>
-    <button class="arrow" id="btn-export" title="Export post-ready file" disabled>⤒</button>
+    <button class="arrow" id="btn-export" title="Export post-ready file">⤒</button>
     <button class="arrow hidden" id="btn-close" title="Close video">✕</button>
   </div>
   <div id="prog"><i></i></div>
-  <input type="file" id="file" accept="video/mp4,video/quicktime,video/webm,video/*" class="hidden">
+  <input type="file" id="file" accept="video/*" class="offscreen">
 </header>
 
 <div id="grid">
@@ -458,14 +496,12 @@ body.ghost main::before,body.ghost main::after{opacity:.3}
 
 <div id="toasts"></div>
 
-<video id="pv" muted playsinline style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;"></video>
-<canvas id="pc" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;"></canvas>
-<video id="pvw" muted playsinline style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;"></video>
+<video id="pv" muted playsinline class="offscreen"></video>
+<canvas id="pc" class="offscreen"></canvas>
+<video id="pvw" muted playsinline class="offscreen"></video>
 
 <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/nsfwjs@2.4.2/dist/nsfwjs.min.js"></script>
 
 <script>
 /* Single-threaded ffmpeg core: no SharedArrayBuffer, no service worker, no
@@ -566,24 +602,38 @@ setState('Starting', 'busy');
     const { FFmpeg } = window.FFmpegWASM || window.FFmpeg;
     const { toBlobURL } = window.FFmpegUtil;
     ffmpeg = new FFmpeg();
-    const base = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd';
-    
-    await ffmpeg.load({
-      coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm')
-    });
-    
+
+    // Prefer the copy sitting next to this file, so a self-hosted or offline
+    // install never depends on a CDN. Fall back to the CDN if it isn't there.
+    let cfg = null;
+    try{
+      const probeRes = await fetch('./ffmpeg-core/ffmpeg-core.js', { method:'GET' });
+      if(probeRes.ok){
+        cfg = { coreURL:'./ffmpeg-core/ffmpeg-core.js', wasmURL:'./ffmpeg-core/ffmpeg-core.wasm' };
+        log('using local ffmpeg-core');
+      }
+    }catch(_){}
+    if(!cfg){
+      const base = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd';
+      cfg = {
+        coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
+        wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm')
+      };
+      log('using CDN ffmpeg-core');
+    }
+    await ffmpeg.load(cfg);
     setState('Ready', 'live');
   }catch(err){
     console.error(err);
     setState('Encoder offline', 'hot');
-    toast('err','Encoder offline','Check connection or service worker cache and reload.', 9000);
+    toast('err','Encoder offline','Check your connection and reload. The file check still works.', 9000);
   }
 })();
 
 /* ---- controls ---- */
 UI.srcMark.onclick = () => { document.body.classList.toggle('ghost'); savePrefs(); };
 UI.btnImport.onclick = () => UI.file.click();
+UI.standby.onclick   = () => UI.file.click();   // tapping the diamond imports too
 UI.btnClose.onclick = () => { if(!busy) reset(); };
 UI.file.onchange = e => { if(e.target.files.length) ingest(e.target.files[0]); };
 UI.scopeT.onclick = () => {
@@ -591,7 +641,9 @@ UI.scopeT.onclick = () => {
   UI.scopeT.textContent = open ? 'What does PASS actually cover?' : 'Hide details';
 };
 UI.btnExport.onclick = () => {
-  if(busy || !activeFile) return;
+  if(busy){ toast('warn','Busy','An export is already running.', 4000); return; }
+  if(!activeFile){ toast('warn','No video','Import a video first with \u2913.', 4000); return; }
+  if(!ffmpeg){ toast('err','Encoder offline','The encoder did not load. Reload the page.', 6000); return; }
   UI.modal.classList.add('on');
 };
 UI.dlgNo.onclick = () => UI.modal.classList.remove('on');
@@ -1467,11 +1519,6 @@ async function probeSource(file){
   out.duration = isFinite(UI.video.duration) ? UI.video.duration : 0;
   URL.revokeObjectURL(url);
 
-  // If HTML5 video can play it, pull frame rate and basic properties even if FFmpeg fails
-  if(out.width > 0 && out.height > 0) {
-    out.fps = 30; // standard fallback
-  }
-
   if(ffmpeg){
     const lines = [];
     const collect = ({message}) => lines.push(message);
@@ -1480,7 +1527,7 @@ async function probeSource(file){
       const { fetchFile } = window.FFmpegUtil;
       await ffmpeg.writeFile('probe.bin', await fetchFile(file));
       await ffmpeg.exec(['-hide_banner','-i','probe.bin']);
-    }catch(_){ /* log collection */ }
+    }catch(_){ /* ffmpeg exits non-zero with no output file; the log is what we want */ }
     ffmpeg.off('log', collect);
     const text = lines.join('\n');
     const fps = text.match(/([\d.]+)\s+fps/);
@@ -1493,7 +1540,6 @@ async function probeSource(file){
   }
   return out;
 }
-
 
 
 
@@ -1782,13 +1828,9 @@ function encodeArgs(vf){
     '-g',String(gop),'-keyint_min',String(Math.round(gop/2)),'-sc_threshold','0',
     '-color_primaries','bt709','-color_trc','bt709','-colorspace','bt709'
   );
-  
-  if (probe.audio) {
-    a.push('-c:a','aac','-b:a','192k','-ar','48000','-ac','2');
-  } else {
-    a.push('-an');
-  }
-
+  // a silent source with -c:a aac makes ffmpeg fail; map no audio instead
+  if(probe.audio){ a.push('-c:a','aac','-b:a','192k','-ar','48000','-ac','2'); }
+  else { a.push('-an'); }
   a.push(
     '-map_metadata','-1','-map_chapters','-1',
     '-fflags','+bitexact','-flags:v','+bitexact','-flags:a','+bitexact',
@@ -1796,6 +1838,7 @@ function encodeArgs(vf){
   );
   return a;
 }
+
 
 
 /* ---- ingest: structural check, then the content check (always, not optional) ---- */
@@ -1839,7 +1882,7 @@ async function ingest(file){
   } else {
     setState('Ready to export', 'live');
   }
-  UI.btnExport.disabled = !ffmpeg;
+  UI.btnExport.disabled = false;
   UI.stage.scrollTop = 0;
 
   contentCheckRun = runContentCheck();
@@ -1881,9 +1924,9 @@ async function execWatched(args){
   let timer;
   const budget = encodeBudgetMs();
   const timeout = new Promise((_, rej) => { timer = setTimeout(() => rej(new Error('WATCHDOG_TIMEOUT')), budget); });
-  try { 
-    const code = await Promise.race([ffmpeg.exec(args), timeout]); 
-    if (code !== 0) throw new Error('EXEC_FAIL');
+  try {
+    const code = await Promise.race([ffmpeg.exec(args), timeout]);
+    if(code !== 0 && code !== undefined) throw new Error('EXEC_FAIL');
   }
   finally { clearTimeout(timer); }
 }
@@ -1992,15 +2035,17 @@ async function processGo(){
    below reads consts defined in the injected modules; calling any of them
    before this point throws a TDZ ReferenceError that aborts the whole script
    and silently unwires every control. */
-  if ('serviceWorker' in navigator) {
+startWorker();
+
+/* Service worker: offline capability only. It must never serve a stale page —
+   see sw.js, which is network-first for HTML and cache-first only for assets. */
+if('serviceWorker' in navigator && location.protocol.startsWith('http')){
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js')
-      .then(reg => console.log('[SHADEPROOF] Service Worker armed.', reg.scope))
-      .catch(err => console.error('[SHADEPROOF] Service Worker failed.', err));
+      .then(reg => { log('service worker armed: ' + reg.scope); })
+      .catch(err => { log('service worker unavailable: ' + err.message); });
   });
 }
-
-startWorker();
 </script>
 </body>
 </html>
