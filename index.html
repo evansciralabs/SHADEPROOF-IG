@@ -564,7 +564,7 @@ setState('Starting', 'busy');
     const { FFmpeg } = window.FFmpegWASM || window.FFmpeg;
     const { toBlobURL } = window.FFmpegUtil;
     ffmpeg = new FFmpeg();
-    const base = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd';
+    const base = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd';
     
     await ffmpeg.load({
       coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
