@@ -1778,15 +1778,22 @@ function encodeArgs(vf){
     '-c:v','libx264','-profile:v','high','-level','4.2',
     '-preset',preset,'-crf',crf,'-maxrate','12M','-bufsize','24M',
     '-g',String(gop),'-keyint_min',String(Math.round(gop/2)),'-sc_threshold','0',
-    '-color_primaries','bt709','-color_trc','bt709','-colorspace','bt709',
-    '-c:a','aac','-b:a','192k','-ar','48000','-ac','2',
+    '-color_primaries','bt709','-color_trc','bt709','-colorspace','bt709'
+  );
+  
+  if (probe.audio) {
+    a.push('-c:a','aac','-b:a','192k','-ar','48000','-ac','2');
+  } else {
+    a.push('-an');
+  }
+
+  a.push(
     '-map_metadata','-1','-map_chapters','-1',
     '-fflags','+bitexact','-flags:v','+bitexact','-flags:a','+bitexact',
     '-movflags','+faststart','out.mp4'
   );
   return a;
 }
-
 
 
 /* ---- ingest: structural check, then the content check (always, not optional) ---- */
@@ -1872,7 +1879,10 @@ async function execWatched(args){
   let timer;
   const budget = encodeBudgetMs();
   const timeout = new Promise((_, rej) => { timer = setTimeout(() => rej(new Error('WATCHDOG_TIMEOUT')), budget); });
-  try { await Promise.race([ffmpeg.exec(args), timeout]); }
+  try { 
+    const code = await Promise.race([ffmpeg.exec(args), timeout]); 
+    if (code !== 0) throw new Error('EXEC_FAIL');
+  }
   finally { clearTimeout(timer); }
 }
 
