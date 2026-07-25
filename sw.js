@@ -1,32 +1,38 @@
-const CACHE_NAME = 'shadeproof-vault-v1';
+const CACHE_NAME = 'shadeproof-vault-v2';
 
 self.addEventListener('install', event => {
   self.skipWaiting();
 });
 
 self.addEventListener('activate', event => {
-  event.waitUntil(clients.claim());
+  event.waitUntil(
+    caches.keys().then(keys => {
+      return Promise.all(
+        keys.map(key => {
+          if (key !== CACHE_NAME) {
+            return caches.delete(key);
+          }
+        })
+      );
+    }).then(() => self.clients.claim())
+  );
 });
 
 self.addEventListener('fetch', event => {
-  // Only intercept GET requests
   if (event.request.method !== 'GET') return;
 
   event.respondWith(
     caches.match(event.request).then(cachedResponse => {
-      // Return the cached version immediately if it exists
       if (cachedResponse) {
         return cachedResponse;
       }
 
-      // Otherwise, fetch from the network
       return fetch(event.request).then(response => {
-        // Ensure the response is valid before caching
-        if (!response || response.status !== 200 || response.type === 'error') {
+        // Status 0 allows opaque cross-origin CDN assets (S3 models, jsDelivr, unpkg)
+        if (!response || (response.status !== 200 && response.status !== 0) || response.type === 'error') {
           return response;
         }
 
-        // Clone the response stream so the browser and cache can both consume it
         const responseToCache = response.clone();
         caches.open(CACHE_NAME).then(cache => {
           cache.put(event.request, responseToCache);
