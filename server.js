@@ -4,15 +4,13 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 8070;
 
-// Single-threaded ffmpeg core in the client — no SharedArrayBuffer, so no COOP/COEP
-// required. That is what lets SHADEPROOF run inside the SRC-D2 tool-glyph sandbox
-// iframe as well as standalone on GitHub Pages or file://.
-//
-// The page ships its own Content-Security-Policy in a meta tag so the protections
-// travel with the file. These headers add what a meta tag cannot express.
-
 app.use(express.static(path.join(__dirname), {
-  setHeaders(res) {
+  setHeaders(res, filePath) {
+    if (filePath.endsWith('.wasm')) {
+      res.setHeader('Content-Type', 'application/wasm');
+    } else if (filePath.endsWith('.js')) {
+      res.setHeader('Content-Type', 'text/javascript');
+    }
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
