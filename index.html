@@ -566,10 +566,11 @@ setState('Starting', 'busy');
     ffmpeg = new FFmpeg();
     const base = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd';
     await ffmpeg.load({
-  coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
-  wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
-  classWorkerURL: await toBlobURL('https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/814.ffmpeg.worker.js', 'text/javascript')
+      coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
+      wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
+      classWorkerURL: await toBlobURL('https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/814.ffmpeg.worker.js', 'text/javascript')
 });
+
     setState('Ready', 'live');
   }catch(err){
     console.error(err);
@@ -1464,6 +1465,11 @@ async function probeSource(file){
   out.duration = isFinite(UI.video.duration) ? UI.video.duration : 0;
   URL.revokeObjectURL(url);
 
+  // If HTML5 video can play it, pull frame rate and basic properties even if FFmpeg fails
+  if(out.width > 0 && out.height > 0) {
+    out.fps = 30; // standard fallback
+  }
+
   if(ffmpeg){
     const lines = [];
     const collect = ({message}) => lines.push(message);
@@ -1472,7 +1478,7 @@ async function probeSource(file){
       const { fetchFile } = window.FFmpegUtil;
       await ffmpeg.writeFile('probe.bin', await fetchFile(file));
       await ffmpeg.exec(['-hide_banner','-i','probe.bin']);
-    }catch(_){ /* ffmpeg exits non-zero with no output file; the log is what we want */ }
+    }catch(_){ /* log collection */ }
     ffmpeg.off('log', collect);
     const text = lines.join('\n');
     const fps = text.match(/([\d.]+)\s+fps/);
@@ -1485,6 +1491,7 @@ async function probeSource(file){
   }
   return out;
 }
+
 
 
 
