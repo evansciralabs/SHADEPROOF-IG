@@ -1,0 +1,1771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="description" content="SHADEPROOF — make any video post-ready. A SRC-D2 tool.">
+<meta name="author" content="Evanscira Labs">
+<meta name="theme-color" content="#080611">
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'self';
+  script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https://cdn.jsdelivr.net https://unpkg.com;
+  worker-src blob:; child-src blob:;
+  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+  font-src https://fonts.gstatic.com data:;
+  img-src 'self' blob: data:; media-src 'self' blob: data:;
+  connect-src 'self' blob: data: https://cdn.jsdelivr.net https://unpkg.com https://s3.amazonaws.com;
+  object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors *;">
+<meta name="referrer" content="no-referrer">
+<title>SRC-D2 // SHADEPROOF</title> 
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Michroma&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#080611; --bg2:#0d0a1c; --panel:#120d24; --sunk:#0a0717; --rail:#0b0819;
+  --line:#291f47; --line-hi:#3b2c66; --line-soft:#1c1536;
+  --silver:#e6ddff; --mute:#948ab4; --faint:#5e5482;
+  --violet:#b06bff; --violet2:#d6b3ff; --violet-lo:#5c2f94; --magenta:#f472ff;
+  --safe:#3ce894; --warn:#ffd166; --block:#ff4d6d;
+  --tg:0 0 10px rgba(176,107,255,.8),0 0 20px rgba(176,107,255,.4);
+  --tg-mag:0 0 8px rgba(244,114,255,.85);
+  --tg-safe:0 0 8px rgba(60,232,148,.8);
+  --tg-warn:0 0 8px rgba(255,209,102,.8);
+  --tg-block:0 0 10px rgba(255,77,109,.85);
+  --mono:'Space Mono',ui-monospace,Menlo,Consolas,monospace;
+  --disp:'Michroma',var(--mono);
+  --h-head:52px; --h-foot:24px; --w-rail:300px; --h-deck:126px;
+  --app-h:100vh;
+}
+*,::after,::before{box-sizing:border-box}
+@supports (height:100dvh){:root{--app-h:100dvh}}
+html,body{margin:0;padding:0;height:var(--app-h);width:100%;overflow:hidden;overscroll-behavior:none}
+body{background:var(--bg);color:var(--silver);font-family:var(--mono);font-size:12px;line-height:1.5;
+  display:flex;flex-direction:column;transition:background-color .4s,color .4s}
+::-webkit-scrollbar{width:6px;height:6px;background:transparent}
+::-webkit-scrollbar-thumb{background:var(--violet-lo);border-radius:3px}
+.hidden{display:none !important}
+button{font-family:inherit}
+button:focus-visible,select:focus-visible{outline:2px solid var(--violet2);outline-offset:2px}
+
+/* ═══ HEADER ═══ */
+header{height:var(--h-head);flex-shrink:0;background:var(--panel);border-bottom:1px solid var(--line);
+  display:flex;align-items:center;padding:0 14px;z-index:100;position:relative;box-shadow:0 3px 14px rgba(0,0,0,.4)}
+header::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(176,107,255,.45) 45%,rgba(244,114,255,.3) 60%,transparent)}
+
+#src-mark{flex:0 0 auto;display:flex;align-items:center;gap:7px;background:0 0;border:0;padding:5px 7px;
+  border-radius:6px;cursor:pointer;transition:all .18s}
+#src-mark:hover{background:rgba(176,107,255,.12)}
+#src-mark .star{color:var(--magenta);text-shadow:var(--tg-mag);font-size:11px;line-height:1}
+#src-mark .txt{font-family:var(--disp);font-size:13px;letter-spacing:.05em;color:var(--violet);text-shadow:var(--tg)}
+body.ghost #src-mark .txt{color:var(--silver)}
+
+.wordmark{flex:1 1 auto;text-align:center;font-family:var(--disp);font-size:17px;letter-spacing:.32em;
+  color:var(--silver);text-shadow:0 0 14px rgba(176,107,255,.55);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;padding-left:.32em;pointer-events:none;min-width:0}
+
+.h-right{flex:0 0 auto;display:flex;align-items:center;gap:2px}
+.arrow{font-family:var(--disp);font-size:22px;line-height:1;padding:6px 10px;background:0 0;border:0;
+  border-radius:6px;cursor:pointer;color:var(--violet);transition:all .18s}
+.arrow:hover:not(:disabled){transform:scale(1.14);color:var(--violet2);text-shadow:0 0 10px currentColor;
+  background:rgba(176,107,255,.12)}
+.arrow:disabled{opacity:.26;cursor:not-allowed}
+#btn-close{color:var(--block)}
+#btn-close:hover:not(:disabled){color:#ff9db0;background:rgba(255,77,109,.12)}
+
+#prog{position:absolute;left:0;right:0;bottom:0;height:2px;background:transparent;z-index:2;display:none}
+#prog i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--violet),var(--magenta));
+  box-shadow:0 0 9px var(--violet);transition:width .25s}
+
+/* ═══ GRID ═══ */
+#grid{display:flex;height:calc(var(--app-h) - var(--h-head) - var(--h-foot));width:100%;overflow:hidden}
+
+aside{width:var(--w-rail);flex:0 0 var(--w-rail);background:var(--rail);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;overflow:hidden}
+.block{padding:14px 15px;display:flex;flex-direction:column;justify-content:center;min-height:0;flex:1}
+.dgrid{display:grid;grid-template-columns:1fr 1fr;gap:11px 14px;align-content:start;overflow:hidden}
+.ditem{display:flex;flex-direction:column;gap:2px;min-width:0}
+.ditem.span2{grid-column:span 2}
+.dlbl{font-family:var(--disp);font-size:7.5px;letter-spacing:.07em;color:var(--faint)}
+.dval{font-size:11.5px;font-weight:700;color:var(--silver);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dval.chk{color:var(--warn);text-shadow:var(--tg-warn)}
+.dval.hash{font-size:8.5px;font-weight:400;color:var(--mute);word-break:break-all;white-space:normal;line-height:1.4;
+  max-height:2.8em;overflow:hidden}
+
+main{flex:1;position:relative;overflow:hidden;background:var(--bg2);display:flex;flex-direction:column;min-width:0;min-height:0}
+main::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
+  background-image:linear-gradient(rgba(176,107,255,.04) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(176,107,255,.04) 1px,transparent 1px);background-size:22px 22px;
+  mask-image:radial-gradient(ellipse 85% 65% at 50% 0%,#000,transparent 80%)}
+main::after{content:"";position:absolute;left:50%;top:-200px;width:640px;height:440px;transform:translateX(-50%);
+  pointer-events:none;z-index:0;background:radial-gradient(ellipse at center,rgba(176,107,255,.14),transparent 68%);filter:blur(16px)}
+
+#standby{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  z-index:10;pointer-events:none;text-align:center;padding:16px}
+.sb-stage{width:min(58vh,380px);max-width:76vw;aspect-ratio:1;position:relative}
+.sb-svg{width:100%;height:100%;overflow:visible;display:block}
+.sb-dia-out{fill:none;stroke:url(#sp-edge);stroke-width:1.6;filter:drop-shadow(0 0 12px rgba(176,107,255,.55))}
+.sb-dia-mid{fill:none;stroke:var(--violet-lo);stroke-width:1;opacity:.55}
+.sb-dia-in{fill:none;stroke:var(--violet);stroke-width:.8;opacity:.3}
+.sb-dia-dash{fill:none;stroke:var(--violet);stroke-width:1;stroke-dasharray:2 15;opacity:.42}
+.sb-rot{transform-box:fill-box;transform-origin:center;animation:sb-spin 84s linear infinite}
+.sb-rot-r{transform-box:fill-box;transform-origin:center;animation:sb-spin 56s linear infinite reverse}
+.sb-dia{fill:none;stroke:url(#sp-edge);stroke-width:1.5;filter:drop-shadow(0 0 9px rgba(244,114,255,.6))}
+.sb-tick{stroke:var(--violet);stroke-width:1.4;opacity:.5;fill:none}
+.sb-flare,.sb-core{animation:sb-shimmer 8s ease-in-out infinite}
+.sb-bloom{animation:sb-breathe 7s ease-in-out infinite}
+@keyframes sb-spin{to{transform:rotate(360deg)}}
+@keyframes sb-shimmer{0%,100%{opacity:.32}50%{opacity:.85}}
+@keyframes sb-breathe{0%,100%{opacity:.55}50%{opacity:1}}
+
+#drop{position:absolute;inset:0;z-index:500;background:rgba(8,6,17,.94);backdrop-filter:blur(8px);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  border:2px dashed var(--violet);color:var(--violet2);opacity:0;pointer-events:none;transition:.18s;
+  box-shadow:inset 0 0 40px rgba(176,107,255,.2)}
+#drop.on{opacity:1;pointer-events:auto}
+.drop-t{font-family:var(--disp);font-size:14px;letter-spacing:.1em;text-shadow:var(--tg)}
+.drop-s{font-size:11px;color:var(--mute);margin-top:9px}
+
+#stage{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:16px;position:relative;z-index:5}
+.stage-inner{max-width:660px;margin:0 auto}
+
+.preview{position:relative;border:1px solid var(--line-hi);border-radius:8px;overflow:hidden;background:#000;
+  margin-bottom:13px;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center}
+.preview::before,.preview::after{content:"";position:absolute;width:14px;height:14px;pointer-events:none;z-index:4}
+.preview::before{top:6px;left:6px;border-top:2px solid var(--violet);border-left:2px solid var(--violet)}
+.preview::after{bottom:6px;right:6px;border-bottom:2px solid var(--violet);border-right:2px solid var(--violet)}
+.preview canvas{max-width:100%;max-height:100%;display:block;transition:filter .3s}
+.pv-fallback{color:var(--faint);font-family:var(--disp);font-size:10px;letter-spacing:.14em}
+.pv-meta{position:absolute;left:0;right:0;bottom:0;padding:22px 12px 9px;z-index:3;
+  background:linear-gradient(transparent,rgba(4,3,10,.86));display:flex;align-items:flex-end;justify-content:space-between;gap:10px}
+.pv-meta .name{font-size:10.5px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pv-meta .facts{font-size:9.5px;color:rgba(230,221,255,.72);white-space:nowrap;flex-shrink:0}
+.pv-scrim{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;
+  background:rgba(24,4,12,.55);backdrop-filter:blur(3px);text-align:center;padding:18px;z-index:5}
+.pv-scrim.on{display:flex}
+.pv-scrim .badge{font-family:var(--disp);font-size:8.5px;letter-spacing:.16em;color:var(--block);text-shadow:var(--tg-block);
+  border:1px solid rgba(255,77,109,.5);border-radius:999px;padding:4px 12px;background:rgba(255,77,109,.12);margin-bottom:10px}
+.pv-scrim .msg{font-size:12.5px;color:#fff;font-weight:700;max-width:300px;line-height:1.5}
+.pv-scrim .sub{font-size:10.5px;color:var(--mute);margin-top:7px;max-width:300px;line-height:1.5}
+
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:13px}
+.pill{display:flex;align-items:center;gap:9px;background:var(--panel);border:1px solid var(--line);border-radius:8px;
+  padding:9px 11px;flex:1 1 140px;min-width:138px}
+.pill .ic{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  font-family:var(--disp);font-size:11px;background:var(--sunk);border:1px solid var(--line)}
+.pill .tx{min-width:0}
+.pill .tx .l{font-family:var(--disp);font-size:7.5px;letter-spacing:.07em;color:var(--faint)}
+.pill .tx .v{font-size:11.5px;font-weight:700;color:var(--silver);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill.good .ic{color:var(--safe);border-color:rgba(60,232,148,.4);background:rgba(60,232,148,.09)}
+.pill.warn .ic{color:var(--warn);border-color:rgba(255,209,102,.4);background:rgba(255,209,102,.09)}
+.pill.block .ic{color:var(--block);border-color:rgba(255,77,109,.45);background:rgba(255,77,109,.1)}
+.pill.block .v{color:var(--block)}
+.pill.muted .ic{color:var(--faint)}
+
+.integrity{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:13px;margin-bottom:13px}
+.integ-h{font-family:var(--disp);font-size:8.5px;letter-spacing:.12em;color:var(--faint);margin-bottom:10px}
+.integ-line{display:flex;align-items:center;gap:10px}
+.integ-line .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.integ-line.clean .dot{background:var(--safe);box-shadow:0 0 10px var(--safe)}
+.integ-line.dirty .dot{background:var(--warn);box-shadow:0 0 10px var(--warn)}
+.integ-line .msg{font-size:11.5px;color:var(--silver);display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.integ-line .msg .pass{font-family:var(--disp);font-size:13px;letter-spacing:.1em;color:var(--safe);text-shadow:var(--tg-safe)}
+.integ-line .msg .pass.f{color:var(--block);text-shadow:var(--tg-block)}
+.integ-line .msg .pass.c{color:var(--warn);text-shadow:var(--tg-warn)}
+.integ-line .msg .sub{color:var(--mute);font-size:10.5px}
+.strip{height:7px;border-radius:4px;overflow:hidden;display:flex;margin-top:11px;background:var(--sunk);border:1px solid var(--line-soft)}
+.strip .part{height:100%}
+.strip .part.media{background:linear-gradient(90deg,var(--violet-lo),var(--violet))}
+.strip .part.index{background:#3a2c5e}
+.strip .part.extra{background:repeating-linear-gradient(45deg,var(--warn) 0 4px,#8a6410 4px 8px)}
+.strip-key{display:flex;gap:13px;margin-top:8px;font-size:8.5px;color:var(--faint)}
+.strip-key i{display:inline-block;width:7px;height:7px;border-radius:2px;margin-right:5px;vertical-align:middle}
+.scope-t{margin-top:11px;background:0 0;border:0;padding:0;cursor:pointer;font-family:var(--mono);font-size:9.5px;
+  color:var(--faint);text-decoration:underline dotted;text-underline-offset:3px}
+.scope-t:hover{color:var(--violet2)}
+.scope-b{margin-top:10px;padding:10px 11px;background:var(--sunk);border:1px solid var(--line-soft);
+  border-left:2px solid var(--violet-lo);border-radius:5px;font-size:10px;color:var(--mute);line-height:1.6}
+.scope-b b{color:var(--silver)}
+.scope-b ul{margin:6px 0 0;padding-left:14px}
+.scope-b li{margin-bottom:3px}
+
+.evidence{background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:13px}
+.ev-h{padding:11px 14px;border-bottom:1px solid var(--line-soft);font-family:var(--disp);font-size:8.5px;
+  letter-spacing:.12em;color:var(--mute)}
+.ev-b{padding:4px 14px 11px}
+.erow{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line-soft);font-size:11px}
+.erow:last-child{border-bottom:0}
+.erow .k{font-family:var(--disp);color:var(--faint);letter-spacing:.05em;font-size:8px;padding-top:2px}
+.erow .v{text-align:right;word-break:break-all;font-variant-numeric:tabular-nums}
+.erow .v.ok{color:var(--safe)} .erow .v.bad{color:var(--block)}
+@media(min-width:560px){.egrid{display:grid;grid-template-columns:1fr 1fr;gap:0 24px}}
+
+#modal{position:fixed;inset:0;z-index:800;display:flex;align-items:center;justify-content:center;padding:20px;
+  background:rgba(6,4,14,.82);backdrop-filter:blur(6px);opacity:0;pointer-events:none;transition:opacity .18s}
+#modal.on{opacity:1;pointer-events:auto}
+.dlg{width:100%;max-width:340px;background:var(--panel);border:1px solid var(--violet-lo);border-radius:10px;
+  box-shadow:0 0 40px rgba(176,107,255,.25),0 20px 50px rgba(0,0,0,.6);transform:translateY(8px);transition:transform .18s}
+#modal.on .dlg{transform:none}
+.dlg-h{padding:13px 15px;border-bottom:1px solid var(--line-soft);font-family:var(--disp);font-size:10px;
+  letter-spacing:.2em;color:var(--violet);text-shadow:var(--tg)}
+.dlg-b{padding:15px}
+.field{margin-bottom:13px}
+.field:last-child{margin-bottom:0}
+.field label{display:block;font-family:var(--disp);font-size:8px;letter-spacing:.1em;color:var(--faint);margin-bottom:6px}
+select{width:100%;background:var(--sunk);border:1px solid var(--line);color:var(--silver);padding:10px 11px;
+  font-family:var(--mono);font-size:11.5px;border-radius:6px;cursor:pointer;transition:.15s}
+select:hover{border-color:var(--line-hi)}
+select:focus{border-color:var(--violet);box-shadow:0 0 7px rgba(176,107,255,.4)}
+.dlg-f{display:flex;gap:9px;padding:0 15px 15px}
+.dbtn{flex:1;padding:12px;border-radius:7px;cursor:pointer;font-family:var(--disp);font-size:15px;line-height:1;
+  transition:all .16s;background:var(--sunk)}
+.dbtn.ok{border:1px solid var(--safe);color:var(--safe);text-shadow:var(--tg-safe)}
+.dbtn.ok:hover{background:rgba(60,232,148,.16);box-shadow:0 0 18px rgba(60,232,148,.35)}
+.dbtn.no{border:1px solid var(--line-hi);color:var(--mute);flex:0 0 64px}
+.dbtn.no:hover{border-color:var(--block);color:var(--block)}
+
+#toasts{position:fixed;right:12px;bottom:calc(var(--h-foot) + 12px);z-index:900;display:flex;flex-direction:column;
+  gap:8px;align-items:flex-end;pointer-events:none;max-width:min(86vw,320px)}
+.toast{pointer-events:auto;cursor:pointer;background:var(--panel);border:1px solid var(--line);
+  border-left:2px solid var(--violet);border-radius:6px;padding:10px 12px;font-size:10.5px;color:var(--silver);
+  line-height:1.6;box-shadow:0 10px 28px rgba(0,0,0,.55);opacity:0;transform:translateY(8px);
+  transition:opacity .22s ease,transform .22s ease}
+.toast.in{opacity:1;transform:none}
+.toast .th{font-family:var(--disp);font-size:8px;letter-spacing:.13em;color:var(--mute);margin-bottom:5px;
+  display:flex;align-items:center;gap:7px}
+.toast .th i{font-style:normal;color:var(--violet)}
+.toast.ok{border-left-color:var(--safe)}   .toast.ok .th i{color:var(--safe)}
+.toast.warn{border-left-color:var(--warn)} .toast.warn .th i{color:var(--warn)}
+.toast.err{border-left-color:var(--block)} .toast.err .th i{color:var(--block)}
+
+footer{height:var(--h-foot);flex-shrink:0;background:var(--panel);border-top:1px solid var(--line);
+  display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:8.5px;color:var(--faint);
+  letter-spacing:.05em;z-index:100}
+.foot-l{display:flex;align-items:center;gap:8px;min-width:0}
+#foot-state{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#led{width:6px;height:6px;border-radius:50%;background:#2a2145;flex-shrink:0;transition:.2s}
+#led.live{background:var(--safe);box-shadow:0 0 8px var(--safe)}
+#led.busy{background:var(--warn);box-shadow:0 0 8px var(--warn);animation:blink 1s infinite}
+#led.hot{background:var(--block);box-shadow:0 0 8px var(--block)}
+@keyframes blink{50%{opacity:.4}}
+.foot-r{font-family:var(--disp);font-size:7.5px;letter-spacing:.09em;white-space:nowrap;flex-shrink:0}
+.foot-r b{color:var(--violet);text-shadow:var(--tg)}
+
+body.ghost{--violet:#9aa0a6;--violet2:#c7c7c7;--violet-lo:#3a3a3a;--magenta:#9aa0a6;
+  --safe:#8a8a8a;--warn:#a9a9a9;--block:#8b0000;--silver:#cfcfcf;--mute:#8a8a8a;--faint:#5a5a5a;
+  --tg:none;--tg-mag:none;--tg-safe:none;--tg-warn:none;--tg-block:none;
+  --bg:#000;--bg2:#060606;--panel:#0b0b0b;--sunk:#050505;--rail:#080808;
+  --line:#2a2a2a;--line-hi:#3a3a3a;--line-soft:#1a1a1a}
+body.ghost *{text-shadow:none !important;box-shadow:none !important;animation:none !important}
+body.ghost main::before,body.ghost main::after{opacity:.3}
+
+@media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
+
+@media (max-width:780px){
+  :root{--h-head:50px;--h-foot:22px;--h-deck:130px}
+  #grid{flex-direction:column}
+  main{order:1;flex:1 1 auto;min-height:0}
+  aside{order:2;width:100%;flex:0 0 var(--h-deck);height:var(--h-deck);
+    border-right:0;border-top:1px solid var(--line)}
+  .dgrid{grid-template-columns:repeat(4,1fr);gap:9px 10px}
+  .ditem.span2{grid-column:span 4}
+  .dval.hash{max-height:1.4em;font-size:8px}
+  .block{padding:10px 12px}
+  .wordmark{font-size:14px;letter-spacing:.22em}
+  #src-mark .txt{font-size:11px}
+  .arrow{font-size:20px;padding:6px 8px}
+  #stage{padding:12px}
+  .sb-stage{width:min(42vh,260px);max-width:66vw}
+  #toasts{left:12px;right:12px;max-width:none;align-items:stretch}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <button id="src-mark" title="Ghost Mode (Shadow Wolf)">
+    <span class="star">✵</span><span class="txt">SRC·D2</span>
+  </button>
+  <span class="wordmark">SHADEPROOF</span>
+  <div class="h-right">
+    <button class="arrow" id="btn-import" title="Import video">⤓</button>
+    <button class="arrow" id="btn-export" title="Export post-ready file" disabled>⤒</button>
+    <button class="arrow hidden" id="btn-close" title="Close video">✕</button>
+  </div>
+  <div id="prog"><i></i></div>
+  <input type="file" id="file" accept="video/mp4,video/quicktime,video/webm,video/*" class="hidden">
+</header>
+
+<div id="grid">
+
+  <aside>
+    <div class="block">
+      <div class="dgrid" id="source">
+        <div class="ditem"><span class="dlbl">FRAME</span><span class="dval">—</span></div>
+        <div class="ditem"><span class="dlbl">ASPECT</span><span class="dval">—</span></div>
+        <div class="ditem"><span class="dlbl">LENGTH</span><span class="dval">—</span></div>
+        <div class="ditem"><span class="dlbl">RATE</span><span class="dval">—</span></div>
+        <div class="ditem"><span class="dlbl">COLOUR</span><span class="dval">—</span></div>
+        <div class="ditem"><span class="dlbl">AUDIO</span><span class="dval">—</span></div>
+        <div class="ditem span2"><span class="dlbl">FINGERPRINT</span><span class="dval hash">awaiting file</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <main>
+    <div id="standby">
+      <div class="sb-stage">
+        <svg class="sb-svg" viewBox="0 0 480 480" aria-hidden="true">
+          <defs>
+            <linearGradient id="sp-edge" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#7dd3fc" stop-opacity=".85"/>
+              <stop offset="45%" stop-color="#b06bff"/>
+              <stop offset="100%" stop-color="#f472ff" stop-opacity=".9"/>
+            </linearGradient>
+            <linearGradient id="sp-flare" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#b06bff" stop-opacity="0"/>
+              <stop offset="30%" stop-color="#d6b3ff" stop-opacity=".5"/>
+              <stop offset="50%" stop-color="#ffffff" stop-opacity=".95"/>
+              <stop offset="70%" stop-color="#f472ff" stop-opacity=".5"/>
+              <stop offset="100%" stop-color="#f472ff" stop-opacity="0"/>
+            </linearGradient>
+            <radialGradient id="sp-bloom">
+              <stop offset="0%" stop-color="#b06bff" stop-opacity=".34"/>
+              <stop offset="55%" stop-color="#7c3aed" stop-opacity=".10"/>
+              <stop offset="100%" stop-color="#7c3aed" stop-opacity="0"/>
+            </radialGradient>
+            <filter id="sp-soft" x="-70%" y="-70%" width="240%" height="240%">
+              <feGaussianBlur stdDeviation="5"/>
+            </filter>
+          </defs>
+          <circle class="sb-bloom" cx="240" cy="240" r="205" fill="url(#sp-bloom)"/>
+          <g class="sb-rot"><polygon class="sb-dia-dash" points="240,40 440,240 240,440 40,240"/></g>
+          <polygon class="sb-dia-out" points="240,66 414,240 240,414 66,240"/>
+          <polygon class="sb-dia-mid" points="240,112 368,240 240,368 112,240"/>
+          <g class="sb-rot-r"><polygon class="sb-dia-in" points="240,158 322,240 240,322 158,240"/></g>
+          <rect class="sb-dia" x="219" y="219" width="42" height="42" transform="rotate(45 240 240)"/>
+          <rect class="sb-flare" x="0" y="238.5" width="480" height="2.5" fill="url(#sp-flare)"/>
+          <ellipse class="sb-core" cx="240" cy="239.75" rx="30" ry="3" fill="#ffffff" opacity=".55" filter="url(#sp-soft)"/>
+          <path class="sb-tick" d="M86 52 L52 52 L52 86"/>
+          <path class="sb-tick" d="M394 52 L428 52 L428 86"/>
+          <path class="sb-tick" d="M86 428 L52 428 L52 394"/>
+          <path class="sb-tick" d="M394 428 L428 428 L428 394"/>
+        </svg>
+      </div>
+    </div>
+
+    <div id="drop">
+      <div class="drop-t">DROP IT HERE</div>
+      <div class="drop-s">MP4 · MOV · WEBM</div>
+    </div>
+
+    <div id="stage" class="hidden">
+      <div class="stage-inner">
+        <div class="preview" id="preview">
+          <canvas id="pv-canvas"></canvas>
+          <span class="pv-fallback" id="pv-fallback">preview unavailable</span>
+          <div class="pv-meta"><span class="name" id="pv-name"></span><span class="facts" id="pv-facts"></span></div>
+          <div class="pv-scrim" id="pv-scrim">
+            <span class="badge">MAY BE FLAGGED</span>
+            <span class="msg" id="scrim-msg"></span>
+            <span class="sub" id="scrim-sub"></span>
+          </div>
+        </div>
+
+        <div class="chips" id="chips"></div>
+
+        <div class="integrity">
+          <div class="integ-h">FILE CHECK</div>
+          <div class="integ-line clean" id="integ"><span class="dot"></span><span class="msg" id="integ-msg"></span></div>
+          <div class="strip" id="strip"></div>
+          <div class="strip-key">
+            <span><i style="background:var(--violet)"></i>video + audio</span>
+            <span><i style="background:#3a2c5e"></i>index</span>
+            <span id="key-extra" class="hidden"><i style="background:var(--warn)"></i>extra data</span>
+          </div>
+          <button class="scope-t" id="scope-t">What does PASS actually cover?</button>
+          <div class="scope-b hidden" id="scope-b">
+            <b>PASS means the file was rebuilt clean, not that it was cleared by antivirus.</b>
+            Shadeproof decodes to raw frames and writes a new file, so anything that isn’t picture or
+            sound is dropped by reconstruction — then it re-checks its own output.
+            <ul>
+              <li><b>Covers:</b> data hidden before, after, or inside the container; foreign files in
+                  padding, metadata, or attachments; unreferenced space in the media blob; malformed
+                  structure built to confuse parsers.</li>
+              <li><b>Doesn’t cover:</b> anything in the picture itself — hidden data in the pixels, or a
+                  malicious link in an on-screen QR. Nor a flaw in the decoder itself, though the browser
+                  sandbox contains that far better than desktop tools.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="evidence hidden" id="evidence-card">
+          <div class="ev-h">BEFORE → AFTER</div>
+          <div class="ev-b"><div class="egrid" id="evidence"></div></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+</div>
+
+<footer>
+  <div class="foot-l"><span id="led"></span><span id="foot-state">Starting</span></div>
+  <div class="foot-r"><b>EVANSCIRA LABS</b> // SRC-D2</div>
+</footer>
+
+<div id="modal">
+  <div class="dlg" role="dialog" aria-modal="true" aria-label="Export">
+    <div class="dlg-h">EXPORT</div>
+    <div class="dlg-b">
+      <div class="field">
+        <label>Platform shape</label>
+        <select id="target">
+          <option value="preserve">Keep original shape</option>
+          <option value="1080x1920">Reels / TikTok / Shorts — 9:16</option>
+          <option value="1080x1350">Instagram feed — 4:5</option>
+          <option value="1080x1080">Square — 1:1</option>
+          <option value="1920x1080">YouTube / landscape — 16:9</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Quality</label>
+        <select id="speed">
+          <option value="veryfast|20">Faster — good</option>
+          <option value="fast|18" selected>Balanced — high</option>
+          <option value="medium|17">Slower — highest</option>
+        </select>
+      </div>
+    </div>
+    <div class="dlg-f">
+      <button class="dbtn ok" id="dlg-ok" title="Confirm">⌁</button>
+      <button class="dbtn no" id="dlg-no" title="Cancel">✕</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<video id="pv" muted playsinline style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;"></video>
+<canvas id="pc" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;"></canvas>
+<video id="pvw" muted playsinline style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;"></video>
+
+<script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/nsfwjs@2.4.2/dist/nsfwjs.min.js"></script>
+
+<script>
+function fitViewport(){
+  const h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+  if(h) document.documentElement.style.setProperty('--app-h', Math.round(h) + 'px');
+}
+fitViewport();
+addEventListener('resize', fitViewport);
+addEventListener('orientationchange', () => setTimeout(fitViewport, 150));
+if(window.visualViewport) window.visualViewport.addEventListener('resize', fitViewport);
+
+addEventListener('error', function(e){
+  var f = document.getElementById('foot-state'), l = document.getElementById('led');
+  if(f) f.textContent = 'ERROR: ' + ((e && e.message) || 'script');
+  if(l) l.className = 'hot';
+});
+addEventListener('unhandledrejection', function(e){
+  var f = document.getElementById('foot-state'), l = document.getElementById('led');
+  if(f) f.textContent = 'ERROR: ' + ((e.reason && e.reason.message) || 'async');
+  if(l) l.className = 'hot';
+});
+
+const $ = id => document.getElementById(id);
+const UI = {
+  file:$('file'), btnImport:$('btn-import'), btnExport:$('btn-export'), btnClose:$('btn-close'), srcMark:$('src-mark'),
+  led:$('led'), footState:$('foot-state'), prog:$('prog'),
+  drop:$('drop'), standby:$('standby'), stage:$('stage'),
+  preview:$('preview'), pvCanvas:$('pv-canvas'), pvFallback:$('pv-fallback'),
+  pvName:$('pv-name'), pvFacts:$('pv-facts'), pvScrim:$('pv-scrim'), scrimMsg:$('scrim-msg'), scrimSub:$('scrim-sub'),
+  chips:$('chips'), integ:$('integ'), integMsg:$('integ-msg'), strip:$('strip'), keyExtra:$('key-extra'),
+  scopeT:$('scope-t'), scopeB:$('scope-b'), source:$('source'),
+  modal:$('modal'), dlgOk:$('dlg-ok'), dlgNo:$('dlg-no'), target:$('target'), speed:$('speed'),
+  evidence:$('evidence'), evidenceCard:$('evidence-card'), toasts:$('toasts'),
+  video:$('pv'), canvas:$('pc'), pvw:$('pvw')
+};
+let ffmpeg = null, activeFile = null, probe = null, analysis = null, nsfwModel = null;
+let contentState = 'unchecked', lastOutput = null, lastName = '', busy = false;
+let contentCheckRun = null;
+let ffmpegReadyPromise = null;
+const PREF_KEY = 'shadeproof_srcd2_v3';
+
+function setState(text, cls){ UI.footState.textContent = text; UI.led.className = cls || ''; }
+function log(msg){ try{ console.log('[SHADEPROOF] ' + msg); }catch(_){} }
+
+const TIPS = [
+  'Run videos people send you through Shadeproof before reposting. A repost carries whatever the original file carried.',
+  'Platforms re-compress everything. Exporting high quality first means their compression starts from a better source.',
+  'Raw camera files can carry location data. Shadeproof strips all metadata on export.',
+  'HDR footage posted untagged is what makes clips look washed out. Shadeproof tags it BT.709.',
+  '9:16 and 4:5 crop differently. Pick the shape before you post, not after.',
+  'A file that unexpectedly refuses to decode is worth a second look, not a second try.'
+];
+let tipUsed = false;
+function toast(kind, title, msg, ms){
+  const t = document.createElement('div');
+  t.className = 'toast ' + kind;
+  const g = kind==='ok' ? '\u25CF' : kind==='warn' ? '\u25C6' : kind==='err' ? '\u25B2' : '\u25C7';
+  t.innerHTML = '<div class="th"><i>'+g+'</i>'+title+'</div>'+msg;
+  UI.toasts.appendChild(t);
+  requestAnimationFrame(() => t.classList.add('in'));
+  const kill = () => { t.classList.remove('in'); setTimeout(() => t.remove(), 240); };
+  t.onclick = kill;
+  setTimeout(kill, ms || 5200);
+}
+function habitTip(){
+  if(tipUsed) return;
+  tipUsed = true;
+  let i = 0;
+  try{ i = parseInt(localStorage.getItem('shadeproof_tip') || '0', 10) || 0; }catch(_){}
+  try{ localStorage.setItem('shadeproof_tip', String((i + 1) % TIPS.length)); }catch(_){}
+  setTimeout(() => toast('tip', 'Good habit', TIPS[i % TIPS.length], 9000), 1600);
+}
+
+function loadPrefs(){
+  try{ const p = JSON.parse(localStorage.getItem(PREF_KEY) || '{}');
+    if(p.target) UI.target.value = p.target;
+    if(p.speed)  UI.speed.value  = p.speed;
+    if(p.ghost)  document.body.classList.add('ghost');
+  }catch(_){}
+}
+function savePrefs(){
+  try{ localStorage.setItem(PREF_KEY, JSON.stringify({
+    target:UI.target.value, speed:UI.speed.value, ghost:document.body.classList.contains('ghost')
+  })); }catch(_){}
+}
+
+loadPrefs();
+setState('Starting', 'busy');
+
+ffmpegReadyPromise = (async function boot(){
+  try{
+    const { FFmpeg } = window.FFmpegWASM || window.FFmpeg;
+    const { toBlobURL } = window.FFmpegUtil;
+    ffmpeg = new FFmpeg();
+    const base = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd';
+    
+    await ffmpeg.load({
+      coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
+      wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm')
+    });
+    
+    setState('Ready', 'live');
+  }catch(err){
+    console.error(err);
+    setState('Encoder offline', 'hot');
+    toast('err','Encoder offline','Check connection or service worker cache and reload.', 9000);
+    throw err;
+  }
+})();
+
+UI.srcMark.onclick = () => { document.body.classList.toggle('ghost'); savePrefs(); };
+UI.btnImport.onclick = () => UI.file.click();
+UI.btnClose.onclick = () => { if(!busy) reset(); };
+UI.file.onchange = e => { if(e.target.files.length) ingest(e.target.files[0]); };
+UI.scopeT.onclick = () => {
+  const open = UI.scopeB.classList.toggle('hidden');
+  UI.scopeT.textContent = open ? 'What does PASS actually cover?' : 'Hide details';
+};
+UI.btnExport.onclick = () => {
+  if(busy || !activeFile) return;
+  UI.modal.classList.add('on');
+};
+UI.dlgNo.onclick = () => UI.modal.classList.remove('on');
+UI.modal.onclick = e => { if(e.target === UI.modal) UI.modal.classList.remove('on'); };
+document.addEventListener('keydown', e => { if(e.key === 'Escape') UI.modal.classList.remove('on'); });
+UI.dlgOk.onclick = () => {
+  savePrefs();
+  UI.modal.classList.remove('on');
+  lastOutput = null;
+  processGo();
+};
+
+document.body.addEventListener('dragover', e => { e.preventDefault(); UI.drop.classList.add('on'); });
+document.body.addEventListener('dragleave', e => { if(!e.relatedTarget) UI.drop.classList.remove('on'); });
+document.body.addEventListener('drop', e => {
+  e.preventDefault(); UI.drop.classList.remove('on');
+  const f = e.dataTransfer.files[0]; if(f) ingest(f);
+});
+
+function ENGINE(){
+const TOP_LEVEL = new Set(['ftyp','styp','moov','moof','mdat','free','skip','wide',
+                           'meta','mfra','pdin','sidx','ssix','prft','emsg','uuid']);
+const CONTAINERS = new Set(['moov','trak','edts','mdia','minf','dinf','stbl','mvex','moof',
+                            'traf','mfra','udta','ipro','sinf','schi','wave','gmhd','tapt',
+                            'tref','strk','iprp','ipco','grpl','edvd']);
+const STRUCTURAL = new Set(['moov','trak','edts','mdia','minf','dinf','stbl','mvex','moof','traf']);
+const META_CONTAINERS = new Set(['udta','meta','ipro','sinf','schi']);
+const KNOWN_LEAVES = new Set(['mvhd','tkhd','mdhd','hdlr','elst','vmhd','smhd','hmhd','nmhd',
+  'gmin','dref','url ','urn ','stsd','stts','stsc','stsz','stz2','stco','co64','stss','ctts',
+  'cslg','sdtp','sgpd','sbgp','saiz','saio','padb','stdp','mehd','trex','mfhd','tfhd','trun',
+  'tfdt','subs','senc','tenc','schm','frma','btrt','pasp','colr','clap','fiel','avcC','hvcC',
+  'esds','damr','d263','chan','keys','ilst','data','name','mean','leva','tfra','mfro','cprt',
+  'ainf','mvex','styp','sidx','ssix','prft','emsg','free','skip','wide','load','kind','ID32',
+  '©too','©nam','©ART','©day','©cmt','©gen','covr','gps ','wloc','ctry']);
+
+const SIGNATURES = [
+  ['ZIP / JAR / APK',    [0x50,0x4B,0x03,0x04]],
+  ['ZIP (empty)',        [0x50,0x4B,0x05,0x06]],
+  ['ZIP (spanned)',      [0x50,0x4B,0x07,0x08]],
+  ['RAR archive',        [0x52,0x61,0x72,0x21]],
+  ['7-Zip archive',      [0x37,0x7A,0xBC,0xAF]],
+  ['gzip stream',        [0x1F,0x8B,0x08]],
+  ['bzip2 archive',      [0x42,0x5A,0x68]],
+  ['XZ archive',         [0xFD,0x37,0x7A,0x58,0x5A]],
+  ['Windows PE / DOS',   [0x4D,0x5A]],
+  ['ELF executable',     [0x7F,0x45,0x4C,0x46]],
+  ['Mach-O 64 (LE)',     [0xCF,0xFA,0xED,0xFE]],
+  ['Mach-O 32 (LE)',     [0xCE,0xFA,0xED,0xFE]],
+  ['Mach-O universal',   [0xCA,0xFE,0xBA,0xBE]],
+  ['WebAssembly',        [0x00,0x61,0x73,0x6D]],
+  ['MS Cabinet',         [0x4D,0x53,0x43,0x46]],
+  ['ISO 9660',           [0x43,0x44,0x30,0x30,0x31]],
+  ['PDF document',       [0x25,0x50,0x44,0x46]],
+  ['PNG image',          [0x89,0x50,0x4E,0x47]],
+  ['GIF image',          [0x47,0x49,0x46,0x38]],
+  ['Windows shortcut',   [0x4C,0x00,0x00,0x00]],
+  ['EICAR test string',  [0x58,0x35,0x4F,0x21,0x50,0x25,0x40,0x41,0x50]],
+];
+const TEXT_SIGNATURES = ['<?php','<script','<%eval','<!doctype html','#!/bin/','#!/usr/bin',
+  'powershell','frombase64string','invoke-expression','cmd.exe','/bin/sh','wget ','curl ',
+  'eval(','base64_decode','system(','exec(','shellcode','metasploit','meterpreter'];
+
+const type4 = (dv,off) => String.fromCharCode(dv.getUint8(off),dv.getUint8(off+1),dv.getUint8(off+2),dv.getUint8(off+3));
+const printable = s => [...s].every(c => { const n = c.charCodeAt(0); return (n>=0x20&&n<=0x7E)||n===0xA9; });
+const bytes = n => n < 1024 ? n+' B'
+  : n < 1048576 ? (n/1024).toFixed(1)+' KB'
+  : n < 1073741824 ? (n/1048576).toFixed(1)+' MB'
+  : (n/1073741824).toFixed(2)+' GB';
+async function slice(file, start, end){
+  return new DataView(await file.slice(Math.max(0,start), Math.min(end, file.size)).arrayBuffer());
+}
+async function sha(buf){
+  const h = await crypto.subtle.digest('SHA-256', buf);
+  return [...new Uint8Array(h)].map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+async function entropy(file, start, len){
+  if(len <= 0) return 0;
+  const take = Math.min(len, 98304);
+  const third = Math.floor(take/3);
+  const parts = [];
+  parts.push(new Uint8Array((await file.slice(start, start+third).arrayBuffer())));
+  if(len > take){
+    const mid = start + Math.floor(len/2) - Math.floor(third/2);
+    parts.push(new Uint8Array((await file.slice(mid, mid+third).arrayBuffer())));
+    parts.push(new Uint8Array((await file.slice(start+len-third, start+len).arrayBuffer())));
+  }
+  const freq = new Uint32Array(256); let total = 0;
+  for(const p of parts){ for(let i=0;i<p.length;i++){ freq[p[i]]++; total++; } }
+  if(!total) return 0;
+  let H = 0;
+  for(let i=0;i<256;i++){ if(freq[i]){ const px = freq[i]/total; H -= px*Math.log2(px); } }
+  return H;
+}
+
+async function scanRegion(file, start, length){
+  const win = 786432;
+  const spans = [[start, Math.min(length, win)]];
+  if(length > win*2) spans.push([start+length-win, win]);
+  const hits = new Set();
+  for(const [s,l] of spans){
+    const u8 = new Uint8Array((await file.slice(s, s+l).arrayBuffer()));
+    for(const [name, sig] of SIGNATURES){
+      outer: for(let i=0;i<=u8.length-sig.length;i++){
+        for(let j=0;j<sig.length;j++) if(u8[i+j]!==sig[j]) continue outer;
+        hits.add(name); break;
+      }
+    }
+    let text=''; const tcap=Math.min(u8.length,393216);
+    for(let i=0;i<tcap;i++){ const c=u8[i]; text += (c>=0x20&&c<=0x7E)?String.fromCharCode(c):' '; }
+    text=text.toLowerCase();
+    for(const t of TEXT_SIGNATURES) if(text.includes(t)) hits.add(`text: ${t}`);
+  }
+  const H = await entropy(file, start, length);
+  return { hits:[...hits], entropy:H };
+}
+
+async function findStart(file){
+  const head = await slice(file, 0, 8);
+  if(head.byteLength >= 8){
+    const t = type4(head, 4);
+    if(printable(t) && TOP_LEVEL.has(t)) return 0;
+  }
+  const win = new Uint8Array((await file.slice(0, Math.min(file.size, 4194304)).arrayBuffer()));
+  const F = [0x66,0x74,0x79,0x70];
+  for(let i=4;i<=win.length-8;i++){
+    if(win[i]===F[0]&&win[i+1]===F[1]&&win[i+2]===F[2]&&win[i+3]===F[3]){
+      const sz = (win[i-4]<<24)|(win[i-3]<<16)|(win[i-2]<<8)|win[i-1];
+      const brandOk = win.length>=i+8 && [win[i+4],win[i+5],win[i+6],win[i+7]].every(c=>c>=0x20&&c<=0x7E);
+      if(sz>=16 && sz<=file.size && brandOk) return i-4;
+    }
+  }
+  return 0;
+}
+
+async function walkContainer(file){
+  const boxes = [];
+  const leading = await findStart(file);
+  let off = leading, guard = 0;
+  while(off + 8 <= file.size && guard++ < 20000){
+    const dv = await slice(file, off, off + 16);
+    if(dv.byteLength < 8) break;
+    let size = dv.getUint32(0);
+    const type = type4(dv, 4);
+    let header = 8;
+    if(!printable(type)) break;
+    if(size === 1){ if(dv.byteLength < 16) break; size = Number(dv.getBigUint64(8)); header = 16; }
+    else if(size === 0){ size = file.size - off; }
+    if(size < header) break;
+    if(off + size > file.size){ boxes.push({type, offset:off, size:file.size-off, header, truncated:true}); off = file.size; break; }
+    boxes.push({type, offset:off, size, header});
+    off += size;
+  }
+  return { boxes, consumed:off, total:file.size, leading };
+}
+
+async function deepWalk(file, boxes){
+  const unknown = [];
+  const spots = [];
+  const stsz = [];
+  const stz2 = [];
+  let atomCount = 0, maxDepth = 0;
+  const hazards = [];
+
+  async function readFullboxContainerOffset(off, header){
+    for(const pad of [4, 0]){
+      const cs = off + header + pad;
+      if(cs + 8 > file.size) continue;
+      const dv = await slice(file, cs, cs + 8);
+      const t = type4(dv, 4), sz = dv.getUint32(0);
+      if(printable(t) && sz >= 8 && cs + sz <= off + 100000000) return pad;
+    }
+    return 4;
+  }
+
+  async function descend(start, end, depth, parentType){
+    if(depth > 8){ hazards.push({code:'DEEP_NEST', msg:'atom nesting deeper than 8 levels'}); return; }
+    if(depth > maxDepth) maxDepth = depth;
+    let off = start, guard = 0;
+    while(off + 8 <= end && guard++ < 20000){
+      if(++atomCount > 60000){ hazards.push({code:'ATOM_FLOOD', msg:'more than 60,000 atoms'}); return; }
+      const dv = await slice(file, off, off + 16);
+      if(dv.byteLength < 8) break;
+      let size = dv.getUint32(0);
+      const type = type4(dv, 4);
+      let header = 8;
+      if(!printable(type)) break;
+      if(size === 1){ if(dv.byteLength<16) break; size = Number(dv.getBigUint64(8)); header = 16; }
+      else if(size === 0){ size = end - off; }
+      if(size < header || off + size > end + 8){ break; }
+
+      if(type === 'stsz') stsz.push({offset:off, size, header});
+      else if(type === 'stz2') stz2.push({offset:off, size, header});
+
+      if(type === 'meta'){
+        const pad = await readFullboxContainerOffset(off, header);
+        spots.push({type, offset:off, size, contentStart:off+header+pad});
+        await descend(off + header + pad, off + size, depth + 1, 'meta');
+      } else if(CONTAINERS.has(type)){
+        if(META_CONTAINERS.has(type)) spots.push({type, offset:off, size, contentStart:off+header});
+        await descend(off + header, off + size, depth + 1, type);
+      } else if(type === 'free' || type === 'skip' || type === 'uuid'){
+        spots.push({type, offset:off, size, contentStart:off+header});
+      } else if(STRUCTURAL.has(parentType) && !KNOWN_LEAVES.has(type) && !TOP_LEVEL.has(type) && !CONTAINERS.has(type)){
+        unknown.push({type, offset:off, size, depth});
+      }
+      off += size;
+    }
+  }
+
+  for(const b of boxes){
+    if(b.truncated) continue;
+    if(b.type === 'meta'){
+      const pad = await readFullboxContainerOffset(b.offset, b.header||8);
+      spots.push({type:'meta', offset:b.offset, size:b.size, contentStart:b.offset+(b.header||8)+pad});
+      await descend(b.offset + (b.header||8) + pad, b.offset + b.size, 1, 'meta');
+    } else if(CONTAINERS.has(b.type)){
+      await descend(b.offset + (b.header||8), b.offset + b.size, 1, b.type);
+    } else if(b.type === 'free' || b.type === 'skip' || b.type === 'uuid'){
+      spots.push({type:b.type, offset:b.offset, size:b.size, contentStart:b.offset+(b.header||8)});
+    }
+  }
+  return { unknown, spots, stsz, stz2, atomCount, maxDepth, hazards };
+}
+
+async function sumSamples(file, stszList, stz2List){
+  let total = 0; const hazards = [];
+  const CAP = 8000000;
+  for(const s of stszList){
+    const need = Math.min(s.size, 4194304);
+    const dv = await slice(file, s.offset, s.offset + need);
+    if(dv.byteLength < 20) continue;
+    const sampleSize = dv.getUint32(s.header + 4);
+    const count = dv.getUint32(s.header + 8);
+    if(count > CAP){ hazards.push({code:'SAMPLE_BOMB', msg:`stsz declares ${count.toLocaleString()} samples`}); continue; }
+    if(sampleSize !== 0){ total += sampleSize * count; continue; }
+    let cur = dv, curStart = s.offset;
+    for(let i=0;i<count;i++){
+      const pos = s.header + 12 + i*4;
+      const abs = s.offset + pos;
+      if(abs + 4 > curStart + cur.byteLength){
+        cur = await slice(file, abs, Math.min(abs + 1048576, s.offset + s.size)); curStart = abs;
+        if(cur.byteLength < 4) break;
+      }
+      total += cur.getUint32(abs - curStart);
+    }
+  }
+  for(const s of stz2List){
+    const dv = await slice(file, s.offset, s.offset + Math.min(s.size, 1048576));
+    if(dv.byteLength < 20) continue;
+    const fieldSize = dv.getUint8(s.header + 7);
+    const count = dv.getUint32(s.header + 8);
+    if(count > CAP){ hazards.push({code:'SAMPLE_BOMB', msg:`stz2 declares ${count.toLocaleString()} samples`}); continue; }
+    if(fieldSize === 16){ for(let i=0;i<count;i++){ const p=s.header+12+i*2; if(p+2<=dv.byteLength) total += dv.getUint16(p); } }
+    else if(fieldSize === 8){ for(let i=0;i<count;i++){ const p=s.header+12+i; if(p+1<=dv.byteLength) total += dv.getUint8(p); } }
+    else { total += count * 2; }
+  }
+  return { total, hazards };
+}
+
+async function analyzeISO(file){
+  const { boxes, consumed, total, leading } = await walkContainer(file);
+  const findings = [];
+  const hazards = [];
+  const trailing = total - consumed;
+  let foreign = 0;
+
+  if(!boxes.length){
+    findings.push({level:'bad', title:'Not a recognisable MP4/MOV container',
+      body:'No valid box structure was found. It may be a different format, or deliberately malformed.'});
+    hazards.push({code:'NOT_ISOBMFF', msg:'no ISO-BMFF structure found'});
+    return { format:'iso', boxes, trailing, consumed, total, leading, findings, hazards, foreign:total,
+             mediaBytes:0, indexBytes:0,
+             deep:{atomCount:0,maxDepth:0,unknown:[]}, mdat:{payload:0,samples:0,dark:0} };
+  }
+
+  if(leading > 0){
+    foreign += leading;
+    const r = await scanRegion(file, 0, leading);
+    findings.push({level:'bad', at:0, title:`${bytes(leading)} in front of the container`,
+      body:(r.hits.length?`Recognised: ${r.hits.join(', ')}. `:'') + `Data bolted ahead of ftyp — the classic polyglot trick. Entropy ${r.entropy.toFixed(1)}/8.`});
+  } else if(!['ftyp','styp'].includes(boxes[0].type)){
+    findings.push({level:'warn', title:`Starts with "${boxes[0].type}" rather than ftyp`,
+      body:'Unusual but not necessarily hostile; some muxers write a different box first.'});
+  }
+  if(trailing > 0){
+    foreign += trailing;
+    const r = await scanRegion(file, consumed, trailing);
+    findings.push({level:'bad', at:consumed, title:`${bytes(trailing)} appended after the last box`,
+      body:(r.hits.length?`Recognised: ${r.hits.join(', ')}. `:'No known signature. ') + `Invisible to players; survives naive filters. Entropy ${r.entropy.toFixed(1)}/8.`});
+  }
+
+  const unknownTop = boxes.filter(b => !TOP_LEVEL.has(b.type));
+  for(const b of unknownTop){
+    foreign += b.size;
+    const r = await scanRegion(file, b.offset, b.size);
+    findings.push({level:'bad', at:b.offset, title:`Non-standard top-level box "${b.type}"`,
+      body:`${bytes(b.size)} outside the ISO base media format.` + (r.hits.length?` Recognised: ${r.hits.join(', ')}.`:'') + ` Entropy ${r.entropy.toFixed(1)}/8.`});
+  }
+
+  if(boxes.some(b => b.truncated)){
+    findings.push({level:'warn', title:'A box claims more length than the file holds',
+      body:'The container is truncated or its size fields are wrong. Some decoders mishandle this.'});
+    hazards.push({code:'TRUNCATED', msg:'a box extends past end of file'});
+  }
+
+  const deep = await deepWalk(file, boxes);
+  hazards.push(...deep.hazards);
+
+  for(const u of deep.unknown){
+    foreign += u.size;
+    const r = await scanRegion(file, u.offset + 8, u.size - 8);
+    findings.push({level:'bad', at:u.offset, title:`Hidden atom "${u.type}" nested ${u.depth} deep`,
+      body:`${bytes(u.size)} tucked inside the atom tree where players never look.` + (r.hits.length?` Recognised: ${r.hits.join(', ')}.`:'') + ` Entropy ${r.entropy.toFixed(1)}/8.`});
+  }
+
+  for(const s of deep.spots){
+    const clen = s.offset + s.size - s.contentStart;
+    if(clen < 32) continue;
+    const r = await scanRegion(file, s.contentStart, clen);
+    const suspicious = r.hits.length > 0 || (clen > 65536 && r.entropy > 7.4);
+    if(s.type === 'free' || s.type === 'skip'){
+      if(clen > 65536 || r.hits.length){
+        foreign += clen;
+        findings.push({level: r.hits.length ? 'bad':'warn', at:s.offset, title:`Padding box "${s.type}" holds ${bytes(clen)}`,
+          body:'Free-space boxes should be empty padding; players skip them, so they hide payloads well.' + (r.hits.length?` Recognised: ${r.hits.join(', ')}.`:` Entropy ${r.entropy.toFixed(1)}/8.`)});
+      }
+    } else if(s.type === 'uuid'){
+      if(suspicious) foreign += clen;
+      findings.push({level: r.hits.length ? 'bad':'warn', at:s.offset, title:`Vendor "uuid" box — ${bytes(s.size)}`,
+        body:'Vendor-specific data outside the standard; contents are unconstrained.' + (r.hits.length?` Recognised: ${r.hits.join(', ')}.`:` Entropy ${r.entropy.toFixed(1)}/8.`)});
+    } else if(suspicious){
+      foreign += clen;
+      findings.push({level:'bad', at:s.offset, title:`Payload inside "${s.type}" metadata`,
+        body:`${bytes(clen)} in a metadata container.` + (r.hits.length?` Recognised: ${r.hits.join(', ')}.`:` High entropy ${r.entropy.toFixed(1)}/8 — looks packed.`)});
+    }
+  }
+
+  const mdatBoxes = boxes.filter(b => b.type === 'mdat');
+  const mdatPayload = mdatBoxes.reduce((s,b) => s + (b.size - (b.header||8)), 0);
+  let sampleBytes = 0;
+  if((deep.stsz.length || deep.stz2.length) && mdatPayload > 0){
+    const ss = await sumSamples(file, deep.stsz, deep.stz2);
+    hazards.push(...ss.hazards);
+    sampleBytes = ss.total;
+    const dark = mdatPayload - sampleBytes;
+    const slack = Math.max(16384, mdatPayload * 0.02);
+    if(sampleBytes > mdatPayload + slack){
+      hazards.push({code:'SAMPLE_OVERRUN', msg:'sample tables reference more data than mdat contains'});
+      findings.push({level:'bad', title:'Sample tables overrun the media data',
+        body:`The index claims ${bytes(sampleBytes)} of samples but mdat only holds ${bytes(mdatPayload)}. Malformed or hostile — refusing to trust it.`});
+    } else if(dark > slack){
+      foreign += dark;
+      const r = await scanRegion(file, mdatBoxes[0].offset + (mdatBoxes[0].header||8) + sampleBytes, dark);
+      findings.push({level:'bad', title:`${bytes(dark)} of unreferenced space inside mdat`,
+        body:`mdat holds ${bytes(mdatPayload)} but only ${bytes(sampleBytes)} is referenced by the sample tables. The rest is dark space — invisible to every player because no sample points at it.` + (r.hits.length?` Recognised: ${r.hits.join(', ')}.`:` Entropy ${r.entropy.toFixed(1)}/8.`)});
+    }
+  }
+
+  const moovIdx = boxes.findIndex(b => b.type === 'moov');
+  const mdatIdx = boxes.findIndex(b => b.type === 'mdat');
+  if(moovIdx > -1 && mdatIdx > -1 && moovIdx > mdatIdx){
+    findings.push({level:'warn', title:'Index sits at the end of the file',
+      body:'moov comes after the media, so players must fetch the whole file before playback. The re-encode moves it to the front.'});
+  }
+
+  if(!findings.length){
+    findings.push({level:'ok', title:'Container structure is clean',
+      body:'Top-level boxes standard, atom tree clean, and mdat fully accounted for by the sample tables.'});
+  }
+
+  const mediaBytes = mdatBoxes.reduce((s,b)=>s+b.size,0);
+  const indexBytes = boxes.filter(b=>['moov','moof','ftyp','styp','sidx'].includes(b.type)).reduce((s,b)=>s+b.size,0);
+  return { format:'iso', boxes, trailing, consumed, total, leading, findings, hazards, foreign,
+           mediaBytes, indexBytes,
+           deep:{atomCount:deep.atomCount, maxDepth:deep.maxDepth, unknown:deep.unknown},
+           mdat:{payload:mdatPayload, samples:sampleBytes, dark:Math.max(0, mdatPayload - sampleBytes)} };
+}
+
+const EBML_NAMES = new Map([
+  [0x1A45DFA3,'EBML'], [0x18538067,'Segment'], [0x114D9B74,'SeekHead'],
+  [0x1549A966,'Info'], [0x1654AE6B,'Tracks'], [0x1F43B675,'Cluster'],
+  [0x1C53BB6B,'Cues'], [0x1941A469,'Attachments'], [0x1254C367,'Tags'],
+  [0x1043A770,'Chapters'], [0xEC,'Void'], [0xBF,'CRC-32'],
+  [0x61A7,'AttachedFile'], [0x467E,'FileDescription'], [0x466E,'FileName'],
+  [0x4660,'FileMimeType'], [0x465C,'FileData'], [0x46AE,'FileUID'],
+  [0xE7,'Timestamp'], [0xA3,'SimpleBlock'], [0xA0,'BlockGroup'],
+  [0xA7,'Position'], [0xAB,'PrevSize'], [0x5854,'SilentTracks'], [0xAF,'EncryptedBlock'],
+]);
+
+const SEGMENT_OK = new Set([0x114D9B74,0x1549A966,0x1654AE6B,0x1043A770,
+                            0x1F43B675,0x1C53BB6B,0x1941A469,0x1254C367,0xEC,0xBF]);
+const CLUSTER_OK = new Set([0xE7,0x5854,0xA7,0xAB,0xA3,0xA0,0xAF,0xEC,0xBF]);
+const ATTACH_OK  = new Set([0x61A7,0xEC,0xBF]);
+const AFILE_OK   = new Set([0x467E,0x466E,0x4660,0x465C,0x46AE,0x4675,0x4661,0x4662]);
+
+const MEDIA_IDS = new Set([0x1F43B675]);
+const INDEX_IDS = new Set([0x1A45DFA3,0x114D9B74,0x1549A966,0x1654AE6B,
+                           0x1C53BB6B,0x1254C367,0x1043A770]);
+
+const ebmlName = id => EBML_NAMES.get(id) || ('0x' + id.toString(16).toUpperCase());
+
+function readID(dv, off){
+  if(off >= dv.byteLength) return null;
+  const b0 = dv.getUint8(off);
+  const len = b0 & 0x80 ? 1 : b0 & 0x40 ? 2 : b0 & 0x20 ? 3 : b0 & 0x10 ? 4 : 0;
+  if(!len || off + len > dv.byteLength) return null;
+  let id = 0;
+  for(let i=0;i<len;i++) id = id * 256 + dv.getUint8(off+i);
+  return { id, len };
+}
+function readSize(dv, off){
+  if(off >= dv.byteLength) return null;
+  const b0 = dv.getUint8(off);
+  let len = 0;
+  for(let i=0;i<8;i++) if(b0 & (0x80 >> i)){ len = i+1; break; }
+  if(!len || off + len > dv.byteLength) return null;
+  let val = b0 & (0xFF >> len);
+  let allOnes = val === (0xFF >> len);
+  for(let i=1;i<len;i++){
+    const b = dv.getUint8(off+i);
+    val = val * 256 + b;
+    if(b !== 0xFF) allOnes = false;
+  }
+  return { size: val, len, unknown: allOnes };
+}
+
+async function readText(file, start, len){
+  const cap = Math.min(len, 512);
+  const u8 = new Uint8Array(await file.slice(start, start + cap).arrayBuffer());
+  let s = '';
+  for(let i=0;i<u8.length;i++){ const c = u8[i]; if(c === 0) break; if(c >= 0x20 && c <= 0x7E) s += String.fromCharCode(c); }
+  return s;
+}
+
+async function findEBMLStart(file){
+  const head = await slice(file, 0, 4);
+  if(head.byteLength >= 4 && head.getUint8(0)===0x1A && head.getUint8(1)===0x45
+     && head.getUint8(2)===0xDF && head.getUint8(3)===0xA3) return 0;
+  const u8 = new Uint8Array(await file.slice(0, Math.min(file.size, 4194304)).arrayBuffer());
+  for(let i=1;i<=u8.length-4;i++){
+    if(u8[i]===0x1A && u8[i+1]===0x45 && u8[i+2]===0xDF && u8[i+3]===0xA3) return i;
+  }
+  return -1;
+}
+
+async function walkLevel(file, start, end, cap = 20000){
+  const els = [];
+  let off = start, guard = 0;
+  while(off + 2 <= end && guard++ < cap){
+    const dv = await slice(file, off, Math.min(off + 16, end));
+    if(dv.byteLength < 2) break;
+    const idr = readID(dv, 0);
+    if(!idr) break;
+    const szr = readSize(dv, idr.len);
+    if(!szr) break;
+    const header = idr.len + szr.len;
+    let size = szr.size;
+    if(szr.unknown) size = end - off - header;
+    if(size < 0) break;
+    const total = header + size;
+    if(off + total > end + 8) {
+      els.push({ id:idr.id, name:ebmlName(idr.id), offset:off, header, size,
+                 total: end - off, unknown:szr.unknown, truncated:true });
+      off = end; break;
+    }
+    els.push({ id:idr.id, name:ebmlName(idr.id), offset:off, header, size, total, unknown:szr.unknown });
+    off += total;
+  }
+  return { els, consumed: off };
+}
+
+async function analyzeEBML(file){
+  const findings = [], hazards = [];
+  const total = file.size;
+  let foreign = 0, mediaBytes = 0, indexBytes = 0;
+  let elementCount = 0, maxDepth = 1, scannedClusters = 0;
+
+  const leading = await findEBMLStart(file);
+  if(leading > 0){
+    foreign += leading;
+    const r = await scanRegion(file, 0, leading);
+    findings.push({ level:'bad', at:0, title:`${bytes(leading)} in front of the container`,
+      body:(r.hits.length?`Recognised: ${r.hits.join(', ')}. `:'') +
+        `A WebM file must begin with the EBML header. Data bolted ahead of it is the polyglot trick. Entropy ${r.entropy.toFixed(1)}/8.` });
+  }
+
+  const top = await walkLevel(file, Math.max(0, leading), total, 64);
+  elementCount += top.els.length;
+  const boxes = top.els.map(e => ({ type:e.name, offset:e.offset, size:e.total, header:e.header, truncated:e.truncated }));
+
+  for(const e of top.els){
+    if(INDEX_IDS.has(e.id)) indexBytes += e.total;
+    if(e.unknown){
+      hazards.push({ code:'UNKNOWN_SIZE', msg:`${e.name} declares unknown size` });
+      findings.push({ level:'warn', at:e.offset, title:`"${e.name}" has no declared length`,
+        body:'Unknown-size elements are a live-streaming construct. In a stored file they force parsers to guess where the element ends, which is a classic way to make two parsers disagree.' });
+    }
+    if(e.truncated){
+      hazards.push({ code:'TRUNCATED', msg:`${e.name} extends past end of file` });
+      findings.push({ level:'warn', at:e.offset, title:`"${e.name}" claims more length than the file holds`,
+        body:'The container is truncated or its length fields are wrong. Some decoders mishandle this.' });
+    }
+  }
+
+  const segs = top.els.filter(e => e.id === 0x18538067);
+  if(!segs.length){
+    findings.push({ level:'bad', title:'No Segment found in the WebM container',
+      body:'A valid Matroska/WebM file carries its media in a Segment. Without one this is not a playable file.' });
+    hazards.push({ code:'NO_SEGMENT', msg:'no Matroska Segment present' });
+  }
+
+  for(const seg of segs){
+    maxDepth = Math.max(maxDepth, 2);
+    const segEnd = Math.min(seg.offset + seg.total, total);
+    const lvl = await walkLevel(file, seg.offset + seg.header, segEnd);
+    elementCount += lvl.els.length;
+
+    for(const c of lvl.els){
+      if(MEDIA_IDS.has(c.id)) mediaBytes += c.total;
+      else if(INDEX_IDS.has(c.id)) indexBytes += c.total;
+
+      if(c.unknown && c.id !== 0x1F43B675){
+        hazards.push({ code:'UNKNOWN_SIZE', msg:`${c.name} declares unknown size` });
+      }
+
+      if(!SEGMENT_OK.has(c.id)){
+        foreign += c.total;
+        const r = await scanRegion(file, c.offset, c.total);
+        findings.push({ level:'bad', at:c.offset, title:`Unrecognised element "${c.name}" in the Segment`,
+          body:`${bytes(c.total)} that does not belong at this level of a WebM file.` +
+               (r.hits.length?` Recognised: ${r.hits.join(', ')}.`:` Entropy ${r.entropy.toFixed(1)}/8.`) });
+        continue;
+      }
+
+      if(c.id === 0xEC && c.size > 65536){
+        foreign += c.size;
+        const r = await scanRegion(file, c.offset + c.header, c.size);
+        findings.push({ level: r.hits.length ? 'bad' : 'warn', at:c.offset,
+          title:`Padding element holds ${bytes(c.size)}`,
+          body:'Void elements are meant to be empty padding; every player skips them, so they hide payloads well.' +
+               (r.hits.length?` Recognised: ${r.hits.join(', ')}.`:` Entropy ${r.entropy.toFixed(1)}/8.`) });
+      }
+
+      if(c.id === 0x1941A469){
+        maxDepth = Math.max(maxDepth, 3);
+        const inner = await walkLevel(file, c.offset + c.header, c.offset + c.total, 4000);
+        elementCount += inner.els.length;
+        for(const af of inner.els){
+          if(!ATTACH_OK.has(af.id)) continue;
+          if(af.id !== 0x61A7) continue;
+          maxDepth = Math.max(maxDepth, 4);
+          const parts = await walkLevel(file, af.offset + af.header, af.offset + af.total, 64);
+          elementCount += parts.els.length;
+          let name = '', mime = '', dataEl = null;
+          for(const p of parts.els){
+            if(p.id === 0x466E) name = await readText(file, p.offset + p.header, p.size);
+            else if(p.id === 0x4660) mime = await readText(file, p.offset + p.header, p.size);
+            else if(p.id === 0x465C) dataEl = p;
+            else if(!AFILE_OK.has(p.id)){
+              foreign += p.total;
+              findings.push({ level:'bad', at:p.offset, title:`Unrecognised element inside an attachment`,
+                body:`${bytes(p.total)} that does not belong in an AttachedFile record.` });
+            }
+          }
+          if(dataEl){
+            foreign += dataEl.size;
+            const r = await scanRegion(file, dataEl.offset + dataEl.header, dataEl.size);
+            const BENIGN = new Set(['PNG image','JPEG image','GIF image']);
+            const notBenign = r.hits.filter(h => !BENIGN.has(h));
+            const risky = notBenign.length > 0 ||
+              /\.(exe|dll|scr|bat|cmd|ps1|vbs|js|jar|apk|sh|msi|com|pif|hta)$/i.test(name) ||
+              /application\/(x-msdownload|x-executable|x-dosexec|java-archive|vnd\.android)/i.test(mime);
+            const label = name || mime || 'unnamed file';
+            findings.push({ level: risky ? 'bad' : 'warn', at:dataEl.offset,
+              title:`Attached file "${label}" — ${bytes(dataEl.size)}`,
+              body:'Matroska lets a video legally carry arbitrary files inside it. Cover art is the intended use; anything at all is possible, and it passes filters precisely because it is legitimate. ' +
+                   (r.hits.length?`Recognised inside: ${r.hits.join(', ')}. `:`Entropy ${r.entropy.toFixed(1)}/8. `) +
+                   'Re-encoding drops attachments entirely.' });
+          }
+        }
+      }
+
+      if(c.id === 0x1F43B675 && scannedClusters < 30){
+        scannedClusters++;
+        maxDepth = Math.max(maxDepth, 3);
+        const kids = await walkLevel(file, c.offset + c.header, Math.min(c.offset + c.total, segEnd), 6000);
+        elementCount += kids.els.length;
+        for(const k of kids.els){
+          if(CLUSTER_OK.has(k.id)) continue;
+          foreign += k.total;
+          const r = await scanRegion(file, k.offset, k.total);
+          findings.push({ level:'bad', at:k.offset, title:`Unrecognised element "${k.name}" inside media data`,
+            body:`${bytes(k.total)} sitting among the media blocks where nothing but frames belong.` +
+                 (r.hits.length?` Recognised: ${r.hits.join(', ')}.`:` Entropy ${r.entropy.toFixed(1)}/8.`) });
+        }
+      }
+    }
+
+    const segTail = total - Math.min(segEnd, total);
+    if(seg === segs[segs.length-1] && segTail > 0){
+      foreign += segTail;
+      const r = await scanRegion(file, segEnd, segTail);
+      findings.push({ level:'bad', at:segEnd, title:`${bytes(segTail)} appended after the container`,
+        body:(r.hits.length?`Recognised: ${r.hits.join(', ')}. `:'No known signature. ') +
+          `Players stop at the end of the Segment, so this region is invisible during playback. Entropy ${r.entropy.toFixed(1)}/8.` });
+    }
+  }
+
+  if(elementCount > 200000) hazards.push({ code:'ELEMENT_FLOOD', msg:`${elementCount.toLocaleString()} EBML elements` });
+
+  if(!findings.length){
+    findings.push({ level:'ok', title:'Container structure is clean',
+      body:'EBML structure is well-formed, no foreign elements, and no attachments riding along.' });
+  }
+
+  const consumed = total - Math.max(0, total - (segs.length ? Math.min(segs[segs.length-1].offset + segs[segs.length-1].total, total) : total));
+  return { format:'ebml', boxes, trailing:0, consumed, total, leading:Math.max(0,leading),
+           findings, hazards, foreign, mediaBytes, indexBytes,
+           deep:{ atomCount:elementCount, maxDepth, unknown:[] },
+           mdat:{ payload:mediaBytes, samples:mediaBytes, dark:0 } };
+}
+
+async function detectFormat(file){
+  const dv = await slice(file, 0, 16);
+  if(dv.byteLength >= 8){
+    const t = type4(dv, 4);
+    if(printable(t) && TOP_LEVEL.has(t)) return 'iso';
+  }
+  if(dv.byteLength >= 4 && dv.getUint8(0)===0x1A && dv.getUint8(1)===0x45
+     && dv.getUint8(2)===0xDF && dv.getUint8(3)===0xA3) return 'ebml';
+  const u8 = new Uint8Array(await file.slice(0, Math.min(file.size, 4194304)).arrayBuffer());
+  let isoAt = -1, ebmlAt = -1;
+  for(let i=0;i<=u8.length-4;i++){
+    if(isoAt < 0 && u8[i]===0x66 && u8[i+1]===0x74 && u8[i+2]===0x79 && u8[i+3]===0x70) isoAt = i;
+    if(ebmlAt < 0 && u8[i]===0x1A && u8[i+1]===0x45 && u8[i+2]===0xDF && u8[i+3]===0xA3) ebmlAt = i;
+    if(isoAt >= 0 && ebmlAt >= 0) break;
+  }
+  if(isoAt < 0 && ebmlAt < 0) return 'unknown';
+  if(isoAt < 0) return 'ebml';
+  if(ebmlAt < 0) return 'iso';
+  return ebmlAt < isoAt ? 'ebml' : 'iso';
+}
+
+async function analyze(file){
+  const fmt = await detectFormat(file);
+  if(fmt === 'ebml') return analyzeEBML(file);
+  return analyzeISO(file);
+}
+
+const HASH_LIMIT = (typeof navigator !== 'undefined' && navigator.deviceMemory && navigator.deviceMemory <= 4)
+  ? 67108864 : 268435456;
+async function digest(file){
+  if(file.size > HASH_LIMIT){
+    const head = await file.slice(0, 8388608).arrayBuffer();
+    const tail = await file.slice(file.size - 8388608).arrayBuffer();
+    const joined = new Uint8Array(head.byteLength + tail.byteLength);
+    joined.set(new Uint8Array(head), 0); joined.set(new Uint8Array(tail), head.byteLength);
+    return { hash: await sha(joined.buffer), partial:true };
+  }
+  return { hash: await sha(await file.arrayBuffer()), partial:false };
+}
+
+return { analyze, analyzeISO, analyzeEBML, detectFormat, digest, sha, bytes };
+}
+
+const _E = ENGINE();
+const bytes = _E.bytes;
+
+let analysisWorker = null;
+let workerHealthy = false;
+let taskSeq = 0;
+
+const WORKER_SRC = ENGINE.toString() + `
+;(function(){
+  var E = ENGINE();
+  self.onmessage = async function(e){
+    var d = e.data || {};
+    if(!d.id) return;
+    try{
+      var out;
+      if(d.action === 'INSPECT'){
+        var analysis = await E.analyze(d.file);
+        var dg = null;
+        try { dg = await E.digest(d.file); }
+        catch(_){ dg = { hash:'unavailable', partial:false }; }
+        out = { analysis: analysis, digest: dg };
+      } else if(d.action === 'ANALYZE'){
+        out = await E.analyze(d.file);
+      }
+      self.postMessage({ id: d.id, ok: true, data: out });
+    }catch(err){
+      self.postMessage({ id: d.id, ok: false, error: (err && err.message) || String(err) });
+    }
+  };
+  self.postMessage({ ready: true });
+})();
+`;
+
+function startWorker(){
+  if(typeof Worker === 'undefined') return;
+  let url = null;
+  try{
+    const blob = new Blob([WORKER_SRC], { type: 'application/javascript' });
+    url = URL.createObjectURL(blob);
+    const w = new Worker(url);
+
+    const onFirst = (e) => {
+      if(e.data && e.data.ready){
+        workerHealthy = true;
+        w.removeEventListener('message', onFirst);
+        try{ URL.revokeObjectURL(url); }catch(_){}
+        log('analysis thread online');
+      }
+    };
+    w.addEventListener('message', onFirst);
+
+    w.onerror = (err) => {
+      console.warn('analysis worker error — falling back to main thread', err);
+      workerHealthy = false;
+      try{ w.terminate(); }catch(_){}
+      analysisWorker = null;
+    };
+
+    analysisWorker = w;
+    setTimeout(() => { if(!workerHealthy){ try{ URL.revokeObjectURL(url); }catch(_){} } }, 10000);
+  }catch(e){
+    console.warn('worker unavailable, using main thread', e);
+    analysisWorker = null;
+    if(url){ try{ URL.revokeObjectURL(url); }catch(_){} }
+  }
+}
+
+function workerTask(action, file, timeoutMs){
+  return new Promise((resolve, reject) => {
+    if(!analysisWorker || !workerHealthy) return reject(new Error('worker unavailable'));
+    const id = ++taskSeq;
+    const timer = setTimeout(() => { done(); reject(new Error('worker timeout')); }, timeoutMs || 180000);
+    function done(){
+      clearTimeout(timer);
+      analysisWorker && analysisWorker.removeEventListener('message', onMsg);
+    }
+    function onMsg(e){
+      const d = e.data;
+      if(!d || d.id !== id) return;
+      done();
+      d.ok ? resolve(d.data) : reject(new Error(d.error || 'analysis failed'));
+    }
+    analysisWorker.addEventListener('message', onMsg);
+    try{ analysisWorker.postMessage({ id, action, file }); }
+    catch(err){ done(); reject(err); }
+  });
+}
+
+async function inspectFile(file){
+  try{
+    return await workerTask('INSPECT', file);
+  }catch(e){
+    console.warn('inspect on main thread:', e.message);
+    const analysis = await _E.analyze(file);
+    let dg;
+    try{ dg = await _E.digest(file); }catch(_){ dg = { hash:'unavailable', partial:false }; }
+    return { analysis, digest: dg };
+  }
+}
+async function analyzeFile(file){
+  try{
+    return await workerTask('ANALYZE', file, 120000);
+  }catch(e){
+    console.warn('analyze on main thread:', e.message);
+    return _E.analyze(file);
+  }
+}
+
+async function probeSource(file){
+  const out = { width:0, height:0, fps:null, colour:'unspecified', hdr:false, duration:0, audio:false };
+  const url = URL.createObjectURL(file);
+  UI.video.src = url;
+  await new Promise(res => {
+    UI.video.onloadedmetadata = res;
+    UI.video.onerror = res;
+    setTimeout(res, 6000);
+  });
+  out.width = UI.video.videoWidth || 0;
+  out.height = UI.video.videoHeight || 0;
+  out.duration = isFinite(UI.video.duration) ? UI.video.duration : 0;
+  URL.revokeObjectURL(url);
+
+  if(out.width > 0 && out.height > 0) {
+    out.fps = 30;
+  }
+
+  if(ffmpeg){
+    const lines = [];
+    const collect = ({message}) => lines.push(message);
+    ffmpeg.on('log', collect);
+    try{
+      const { fetchFile } = window.FFmpegUtil;
+      await ffmpeg.writeFile('probe.bin', await fetchFile(file));
+      await ffmpeg.exec(['-hide_banner','-i','probe.bin']);
+    }catch(_){}
+    ffmpeg.off('log', collect);
+    const text = lines.join('\n');
+    const fps = text.match(/([\d.]+)\s+fps/);
+    if(fps) out.fps = parseFloat(fps[1]);
+    if(/bt2020|smpte2084|arib-std-b67/i.test(text)){ out.hdr = true; out.colour = 'HDR (BT.2020)'; }
+    else if(/bt709/i.test(text)) out.colour = 'BT.709';
+    else if(/bt470|smpte170m/i.test(text)) out.colour = 'SD (BT.601)';
+    out.audio = /Stream #\d+:\d+.*Audio:/i.test(text);
+    try{ await ffmpeg.deleteFile('probe.bin'); }catch(_){}
+  }
+  return out;
+}
+
+function foreignBytes(a){ return a.foreign || 0; }
+function hazardous(a){ return a.hazards && a.hazards.length > 0; }
+function drawIntegrity(a){
+  const extra = foreignBytes(a);
+  if(hazardous(a)){
+    UI.integ.className = 'integ-line dirty';
+    UI.integMsg.innerHTML = `<span class="pass c">CAUTION</span><span class="sub">${a.hazards[0].msg}. Treat the source as suspect.</span>`;
+  } else if(extra > 0){
+    UI.integ.className = 'integ-line dirty';
+    UI.integMsg.innerHTML = `<span class="pass">PASS</span><span class="sub">Tidies ${bytes(extra)} of junk data on export.</span>`;
+  } else {
+    UI.integ.className = 'integ-line clean';
+    UI.integMsg.innerHTML = `<span class="pass">PASS</span><span class="sub">Good to go.</span>`;
+  }
+  const total = a.total || 1;
+  const media = a.mediaBytes || total * 0.7;
+  const index = a.indexBytes || 0;
+  const parts = [['media',media],['index',index],['extra',extra]].filter(([_,v]) => v > 0);
+  UI.strip.innerHTML = parts.map(([c,v]) => `<div class="part ${c}" style="width:${(v/total*100).toFixed(2)}%"></div>`).join('');
+  UI.keyExtra.classList.toggle('hidden', extra === 0);
+}
+function pill(cls, ic, label, val){
+  return `<div class="pill ${cls}"><div class="ic">${ic}</div><div class="tx"><div class="l">${label}</div><div class="v">${val}</div></div></div>`;
+}
+function drawChips(){
+  const p = probe || {};
+  const shapeMap = {preserve:'Original','1080x1920':'9:16 vertical','1080x1350':'4:5 feed','1080x1080':'1:1 square','1920x1080':'16:9 landscape'};
+  const qMap = {'veryfast|20':'Good','fast|18':'High','medium|17':'Highest'};
+  const colour = p.hdr ? 'HDR → SDR' : (/709/.test(p.colour||'') ? 'BT.709' : 'Standardised');
+  let content, cCls, cIc;
+  if(contentState==='clear'){ content='Looks clear'; cCls='good'; cIc='✓'; }
+  else if(contentState==='explicit'){ content='May be flagged'; cCls='block'; cIc='!'; }
+  else if(contentState==='suggestive'){ content='Borderline'; cCls='warn'; cIc='!'; }
+  else if(contentState==='checking'){ content='Checking…'; cCls='muted'; cIc='◌'; }
+  else { content='Unavailable'; cCls='muted'; cIc='○'; }
+  UI.chips.innerHTML =
+    pill('good','⬍','Shape', shapeMap[UI.target.value]||'Original') +
+    pill('good','◆','Quality', qMap[UI.speed.value]||'High') +
+    pill(p.hdr?'warn':'good', p.hdr?'◐':'✓','Colour', colour) +
+    pill(cCls, cIc,'Content', content);
+}
+const erow = (k,v,cls='') => `<div class="erow"><span class="k">${k}</span><span class="v ${cls}">${v}</span></div>`;
+const di = (lbl,val,cls='') => `<div class="ditem"><span class="dlbl">${lbl}</span><span class="dval ${cls}">${val}</span></div>`;
+
+function reset(){
+  activeFile = null; probe = null; analysis = null; contentState = 'unchecked'; lastOutput = null;
+  UI.stage.classList.add('hidden');
+  UI.standby.classList.remove('hidden');
+  UI.btnClose.classList.add('hidden');
+  UI.btnExport.disabled = true;
+  UI.evidenceCard.classList.add('hidden');
+  UI.pvScrim.classList.remove('on');
+  UI.pvCanvas.style.filter = 'none';
+  UI.chips.innerHTML = '';
+  contentCheckRun = null;
+  UI.file.value = '';
+  UI.source.innerHTML = di('FRAME','—')+di('ASPECT','—')+di('LENGTH','—')+di('RATE','—')+
+    di('COLOUR','—')+di('AUDIO','—') +
+    `<div class="ditem span2"><span class="dlbl">FINGERPRINT</span><span class="dval hash">awaiting file</span></div>`;
+  setState(ffmpeg ? 'Ready' : 'Encoder offline', ffmpeg ? 'live' : 'hot');
+}
+
+function renderPreview(file){
+  UI.pvName.textContent = file.name; UI.pvFallback.style.display = 'none';
+  const url = URL.createObjectURL(file), v = UI.pvw;
+  v.src = url; let done = false;
+  const finish = () => { if(!done){ done = true; URL.revokeObjectURL(url); } };
+  v.onloadeddata = () => { const t = Math.min(1,(v.duration||2)*0.25); v.currentTime = isFinite(t)?t:0; };
+  v.onseeked = () => {
+    try{ const c = UI.pvCanvas, w = v.videoWidth||16, h = v.videoHeight||9;
+      c.width=w; c.height=h; c.getContext('2d').drawImage(v,0,0,w,h); }
+    catch(_){ UI.pvFallback.style.display='block'; }
+    finish();
+  };
+  v.onerror = () => { UI.pvFallback.style.display='block'; finish(); };
+  setTimeout(finish, 6000);
+}
+
+async function loadClassifierOnMain(){
+  if(nsfwModel) return Promise.resolve(nsfwModel);
+  return new Promise((res, rej) => {
+    const a = document.createElement('script');
+    a.src = 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js';
+    a.onload = () => {
+      const b = document.createElement('script');
+      b.src = 'https://cdn.jsdelivr.net/npm/nsfwjs@2.4.2/dist/nsfwjs.min.js';
+      b.onload = res; b.onerror = rej; document.head.appendChild(b);
+    };
+    a.onerror = rej; document.head.appendChild(a);
+  }).then(() => nsfwjs.load()).then(m => { nsfwModel = m; return m; });
+}
+
+let contentPrime = null;
+function primeContentModel(){
+  if(contentPrime) return contentPrime;
+  contentPrime = (async () => {
+    await loadClassifierOnMain();
+    return true;
+  })().catch(err => { contentPrime = null; throw err; });
+  return contentPrime;
+}
+
+async function frameCheck(file){
+  await primeContentModel();
+
+  const url = URL.createObjectURL(file);
+  UI.video.src = url;
+  await new Promise((res, rej) => {
+    UI.video.onloadeddata = res;
+    UI.video.onerror = () => rej(new Error('cannot decode for frame sampling'));
+    setTimeout(res, 8000);
+  });
+
+  const ctx = UI.canvas.getContext('2d', { willReadFrequently: true });
+  UI.canvas.width = 224; UI.canvas.height = 224;
+  const dur = UI.video.duration || 0;
+  const samples = Math.min(40, Math.max(8, Math.ceil(dur / 1.5)));
+  let explicit = 0, suggestive = 0;
+
+  try{
+    for(let i = 0; i < samples; i++){
+      UI.video.currentTime = (dur * i) / samples;
+      await new Promise(r => { UI.video.onseeked = r; setTimeout(r, 1200); });
+      ctx.drawImage(UI.video, 0, 0, 224, 224);
+
+      const preds = await nsfwModel.classify(UI.canvas);
+      const get = n => (preds.find(x => x.className === n) || { probability: 0 }).probability;
+      explicit = Math.max(explicit, get('Porn'), get('Hentai'));
+      suggestive = Math.max(suggestive, get('Sexy'));
+      await new Promise(r => setTimeout(r, 0));
+    }
+  }finally{
+    URL.revokeObjectURL(url);
+  }
+  return { explicit, suggestive, samples, thread: 'main' };
+}
+
+function buildFilters(){
+  const parts = [];
+  if(probe.hdr){
+    parts.push("zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv");
+  }
+  const t = UI.target.value;
+  if(t === 'preserve'){
+    parts.push("scale='min(1080,iw)':'min(1920,ih)':force_original_aspect_ratio=decrease:flags=lanczos");
+  } else {
+    const [w,h] = t.split('x');
+    parts.push(`scale=${w}:${h}:force_original_aspect_ratio=decrease:flags=lanczos`);
+    parts.push(`pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=black`);
+  }
+  parts.push('scale=trunc(iw/2)*2:trunc(ih/2)*2', 'setsar=1', 'format=yuv420p');
+  return parts.join(',');
+}
+
+function encodeArgs(vf){
+  const [preset, crf] = UI.speed.value.split('|');
+  const fps = probe.fps && probe.fps > 60.5 ? 60 : null;
+  const gop = Math.round((fps || probe.fps || 30) * 2);
+  const a = ['-i','in.bin','-vf', vf];
+  if(fps) a.push('-r', String(fps));
+  a.push(
+    '-c:v','libx264','-profile:v','high','-level','4.2',
+    '-preset',preset,'-crf',crf,'-maxrate','12M','-bufsize','24M',
+    '-g',String(gop),'-keyint_min',String(Math.round(gop/2)),'-sc_threshold','0',
+    '-color_primaries','bt709','-color_trc','bt709','-colorspace','bt709'
+  );
+  
+  if (probe.audio) {
+    a.push('-c:a','aac','-b:a','192k','-ar','48000','-ac','2');
+  } else {
+    a.push('-an');
+  }
+
+  a.push(
+    '-map_metadata','-1','-map_chapters','-1',
+    '-fflags','+bitexact','-flags:v','+bitexact','-flags:a','+bitexact',
+    '-movflags','+faststart','out.mp4'
+  );
+  return a;
+}
+
+async function ingest(file){
+  try {
+    await ffmpegReadyPromise;
+  } catch(_) {
+    return;
+  }
+  activeFile = file; contentState = 'checking'; lastOutput = null;
+  UI.btnExport.disabled = true;
+  UI.standby.classList.add('hidden'); UI.stage.classList.remove('hidden');
+  UI.btnClose.classList.remove('hidden');
+  UI.evidenceCard.classList.add('hidden');
+  UI.pvScrim.classList.remove('on'); UI.pvCanvas.style.filter = 'none';
+  setState('Checking', 'busy');
+  log('import ' + file.name);
+
+  renderPreview(file);
+  primeContentModel();
+  const inspected = await inspectFile(file);
+  analysis = inspected.analysis;
+  probe = await probeSource(file);
+
+  UI.pvFacts.textContent = [
+    probe.width ? `${probe.width}×${probe.height}` : null,
+    probe.duration ? `${probe.duration.toFixed(0)}s` : null,
+    bytes(file.size)
+  ].filter(Boolean).join('  ·  ');
+
+  const p = probe, ar = p.width&&p.height ? (p.width/p.height).toFixed(3) : '—';
+  const { hash, partial } = inspected.digest;
+  UI.source.innerHTML =
+    di('FRAME', p.width?`${p.width}×${p.height}`:'?') + di('ASPECT', ar) +
+    di('LENGTH', p.duration?p.duration.toFixed(1)+'s':'?') + di('RATE', p.fps?p.fps.toFixed(2)+' fps':'?') +
+    di('COLOUR', p.colour, p.hdr?'chk':'') + di('AUDIO', p.audio?'present':'none') +
+    `<div class="ditem span2"><span class="dlbl">${partial?'FINGERPRINT (H+T)':'FINGERPRINT'}</span><span class="dval hash">${hash}</span></div>`;
+  probe.hash = hash;
+
+  drawIntegrity(analysis);
+  drawChips();
+
+  if(hazardous(analysis)){
+    setState('Caution — malformed', 'hot');
+    toast('warn','Caution', analysis.hazards[0].msg + '. Treat the source as suspect.', 8000);
+  } else {
+    setState('Ready to export', 'live');
+  }
+  UI.btnExport.disabled = !ffmpeg;
+  UI.stage.scrollTop = 0;
+
+  contentCheckRun = runContentCheck();
+}
+
+async function runContentCheck(){
+  try{
+    const r = await frameCheck(activeFile);
+    const pct = n => (n*100).toFixed(0)+'%';
+    if(r.explicit > 0.85){
+      contentState = 'explicit';
+      UI.pvCanvas.style.filter = 'blur(22px)';
+      UI.pvScrim.classList.add('on');
+      UI.scrimMsg.textContent = 'This looks like it could be flagged as explicit.';
+      UI.scrimSub.textContent = `Posting as-is risks a strike or takedown. (Confidence ${pct(r.explicit)}, advisory.)`;
+      toast('warn','Content flag','This may be flagged as explicit. Your call on posting.', 8000);
+    } else if(r.suggestive > 0.8){
+      contentState = 'suggestive';
+    } else {
+      contentState = 'clear';
+    }
+  }catch(e){
+    console.warn('content check unavailable', e);
+    contentState = 'unavailable';
+    toast('warn','Content check unavailable','Could not load the classifier. The file check and export still work.', 7000);
+  }
+  drawChips();
+}
+
+function encodeBudgetMs(){
+  const dur = (probe && probe.duration) || 10;
+  const mb = activeFile ? activeFile.size / 1048576 : 10;
+  return Math.min(900000, Math.max(60000, dur * 4000, mb * 8000));
+}
+async function execWatched(args){
+  let timer;
+  const budget = encodeBudgetMs();
+  const timeout = new Promise((_, rej) => { timer = setTimeout(() => rej(new Error('WATCHDOG_TIMEOUT')), budget); });
+  try { 
+    const code = await Promise.race([ffmpeg.exec(args), timeout]); 
+    if (code !== 0) throw new Error('EXEC_FAIL');
+  }
+  finally { clearTimeout(timer); }
+}
+
+async function processGo(){
+  if(!ffmpeg){ toast('err','Encoder offline','Reload the page to try again.', 8000); return; }
+  if(busy) return;
+  busy = true;
+  UI.btnExport.disabled = true;
+  UI.prog.style.display = 'block';
+  const bar = UI.prog.querySelector('i');
+  setState('Encoding', 'busy');
+
+  if(contentCheckRun){ 
+    try{ 
+      await Promise.race([
+        contentCheckRun,
+        new Promise(r => setTimeout(r, 4000))
+      ]); 
+    }catch(_){} 
+  }
+
+  const onProgress = ({progress}) => { bar.style.width = Math.min(100, Math.max(0, progress*100)) + '%'; };
+  ffmpeg.on('progress', onProgress);
+
+  try{
+    const { fetchFile } = window.FFmpegUtil;
+    await ffmpeg.writeFile('in.bin', await fetchFile(activeFile));
+    try{ await execWatched(encodeArgs(buildFilters())); }
+    catch(e){
+      if(e.message === 'WATCHDOG_TIMEOUT') throw e;
+      if(probe.hdr){
+        probe.hdr = false;
+        await execWatched(encodeArgs(buildFilters()));
+      } else throw e;
+    }
+
+    const data = await ffmpeg.readFile('out.mp4');
+    const blob = new Blob([data], {type:'video/mp4'});
+    const after = await analyzeFile(new File([blob],'out.mp4',{type:'video/mp4'}));
+    const removed = foreignBytes(analysis);
+
+    const residual = foreignBytes(after);
+    const validOut = after.format === 'ebml' ? after.boxes.length > 0
+                   : (after.boxes.length > 0 && after.boxes.some(b => ['ftyp','styp'].includes(b.type)));
+    const verifyFail = !validOut || residual > 0 || hazardous(after);
+
+    UI.evidenceCard.classList.remove('hidden');
+    UI.evidence.innerHTML =
+      erow('SIZE', `${bytes(activeFile.size)} → ${bytes(blob.size)}`) +
+      erow('EXTRA REMOVED', removed ? bytes(removed) : 'none', removed?'ok':'') +
+      erow('METADATA', 'stripped', 'ok') +
+      erow('COLOUR', 'BT.709 tagged', 'ok') +
+      erow('STREAMING', 'index at front', 'ok') +
+      erow('DEEP SCAN', `${(after.deep&&after.deep.atomCount)||0} atoms`, 'ok') +
+      erow('RE-CHECK', verifyFail ? (validOut ? bytes(residual)+' left behind' : 'malformed output') : 'clean', verifyFail?'bad':'ok');
+
+    lastName = 'SHADEPROOF_' + activeFile.name.replace(/\.[^.]+$/,'') + '.mp4';
+    lastOutput = blob;
+
+    if(verifyFail){
+      UI.integ.className = 'integ-line dirty';
+      UI.integMsg.innerHTML = `<span class="pass f">FAIL</span><span class="sub">The rebuilt file didn’t verify clean. Don’t use it.</span>`;
+      setState('Verification FAILED', 'hot');
+      toast('err','Verification failed','The rebuilt file did not verify clean. Don’t use it, and treat the source as suspect.', 10000);
+    } else {
+      drawIntegrity(after);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = lastName;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+
+      const flagged = contentState === 'explicit';
+      setState(flagged ? 'Saved — content flag' : 'Saved', flagged ? 'hot' : 'live');
+      if(flagged){
+        toast('warn','Saved · content flag','Clean file saved, but it may be flagged as explicit. Your call on posting.', 8000);
+      } else {
+        toast('ok','Saved · verified clean', lastName, 5200);
+        habitTip();
+      }
+    }
+  }catch(err){
+    console.error(err);
+    if(err.message === 'WATCHDOG_TIMEOUT'){
+      try{ ffmpeg.terminate(); }catch(_){}
+      ffmpeg = null;
+      setState('Aborted — timeout', 'hot');
+      toast('err','Aborted · timeout','The encode ran past its time budget and was stopped. Reload to process another video.', 10000);
+    } else {
+      setState('Export failed', 'hot');
+      toast('err','Export failed','Usually an unsupported codec — but a file that refuses to decode can also be deliberately malformed. Treat an unexpected failure on a stranger’s video with caution.', 10000);
+    }
+  }finally{
+    busy = false;
+    if(ffmpeg){
+      ffmpeg.off('progress', onProgress);
+      UI.btnExport.disabled = false;
+      try{ await ffmpeg.deleteFile('in.bin'); await ffmpeg.deleteFile('out.mp4'); }catch(_){}
+    } else {
+      UI.btnExport.disabled = true;
+    }
+    UI.prog.style.display = 'none';
+    bar.style.width = '0';
+  }
+}
+
+startWorker();
+</script>
+</body>
+</html>
