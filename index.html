@@ -457,9 +457,9 @@ body.ghost main::before,body.ghost main::after{opacity:.3}
 
 <div id="toasts"></div>
 
-<video id="pv" muted playsinline style="display:none"></video>
-<canvas id="pc" style="display:none"></canvas>
-<video id="pvw" muted playsinline style="display:none"></video>
+<video id="pv" muted playsinline style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;"></video>
+<canvas id="pc" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;"></canvas>
+<video id="pvw" muted playsinline style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;"></video>
 
 <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
@@ -565,9 +565,10 @@ setState('Starting', 'busy');
     ffmpeg = new FFmpeg();
     const base = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd';
     await ffmpeg.load({
-      coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm')
-    });
+  coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
+  wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
+  classWorkerURL: await toBlobURL('https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.worker.js', 'text/javascript')
+});
     setState('Ready', 'live');
   }catch(err){
     console.error(err);
