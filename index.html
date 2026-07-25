@@ -16,7 +16,8 @@
   connect-src 'self' blob: data: https://cdn.jsdelivr.net https://unpkg.com https://s3.amazonaws.com;
   object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors *;">
 <meta name="referrer" content="no-referrer">
-<title>SRC-D2 // SHADEPROOF</title>
+<title>SRC-D2 // SHADEPROOF</title> 
+<link rel="manifest" href="manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Michroma&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -1972,6 +1973,14 @@ async function processGo(){
    below reads consts defined in the injected modules; calling any of them
    before this point throws a TDZ ReferenceError that aborts the whole script
    and silently unwires every control. */
+  if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js')
+      .then(reg => console.log('[SHADEPROOF] Service Worker armed.', reg.scope))
+      .catch(err => console.error('[SHADEPROOF] Service Worker failed.', err));
+  });
+}
+
 startWorker();
 </script>
 </body>
