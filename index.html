@@ -883,9 +883,6 @@ UI.scopeT.onclick = () => {
   UI.scopeT.textContent = open ? 'What does PASS actually cover?' : 'Hide details';
 };
 
-  const open = UI.scopeB.classList.toggle('hidden');
-  UI.scopeT.textContent = open ? 'What does PASS actually cover?' : 'Hide details';
-};
 UI.btnExport.onclick = () => {
   if(busy){ toast('warn','BUSY','Export already running.', 3500); return; }
   if(!activeFile){ toast('warn','NO VIDEO','Import one first with \u2913.', 3500); return; }
